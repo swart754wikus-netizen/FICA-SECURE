@@ -161,6 +161,15 @@ tr:hover td { background: #f8fafc; cursor: pointer; }
 .attachment-list { list-style: none; padding: 0; }
 .attachment-list li { padding: 6px 0; }
 
+.site-footer {
+  text-align: center;
+  padding: 24px 16px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.site-footer a { color: var(--text-muted); }
+.site-footer a:hover { color: var(--accent); }
+
 @media print {
   .no-print { display: none !important; }
   body { background: #fff; }
