@@ -19,11 +19,14 @@ function escapeHtml(str) {
 }
 
 function renderAgencyHero(name, logoUrl) {
+  if (logoUrl) {
+    // The logo image already carries the agency's name/wordmark — repeating
+    // it as a heading underneath just reads as duplicated, not premium.
+    el('agencyHero').innerHTML = `<img src="${logoUrl}" alt="${escapeHtml(name)} logo">`;
+    return;
+  }
   const initial = (name || '?').trim().charAt(0).toUpperCase();
-  const image = logoUrl
-    ? `<img src="${logoUrl}" alt="${escapeHtml(name)} logo">`
-    : `<div class="agency-hero-fallback">${initial}</div>`;
-  el('agencyHero').innerHTML = `${image}<div class="agency-hero-name">${escapeHtml(name)}</div>`;
+  el('agencyHero').innerHTML = `<div class="agency-hero-fallback">${initial}</div><div class="agency-hero-name">${escapeHtml(name)}</div>`;
 }
 
 function summaryFor(sub) {

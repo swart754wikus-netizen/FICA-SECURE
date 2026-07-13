@@ -42,11 +42,16 @@ async function loadBranding() {
   try {
     const branding = await apiGet('getCompanyBranding', { slug: state.slug });
     el('brandHeader').hidden = false;
-    el('brandName').textContent = branding.name;
     el('brandTagline').textContent = branding.tagline || '';
     if (branding.logoUrl) {
+      // The logo already carries the agency's name — showing the name again
+      // as a heading right under it is just duplication, not branding.
       el('brandLogo').src = branding.logoUrl;
       el('brandLogo').hidden = false;
+      el('brandName').hidden = true;
+    } else {
+      el('brandName').textContent = branding.name;
+      el('brandName').hidden = false;
     }
     if (branding.status === 'suspended') {
       showError('authError', 'This agency portal is currently unavailable.');
