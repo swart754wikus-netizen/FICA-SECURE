@@ -7,12 +7,12 @@ import { getStorage } from 'https://www.gstatic.com/firebasejs/12.0.0/firebase-s
 // Project settings → Your apps. This is safe to expose in client code (it is
 // not a secret) — see README for where to get it for your own project.
 const firebaseConfig = {
-  apiKey: 'YOUR_FIREBASE_API_KEY',
-  authDomain: 'YOUR_PROJECT_ID.firebaseapp.com',
-  projectId: 'YOUR_PROJECT_ID',
-  storageBucket: 'YOUR_PROJECT_ID.appspot.com',
-  messagingSenderId: 'YOUR_SENDER_ID',
-  appId: 'YOUR_APP_ID',
+  apiKey: 'AIzaSyD9pMr5ROToovR9kCzdjrPixCDWIuJYE9o',
+  authDomain: 'fica-app-fc93c.firebaseapp.com',
+  projectId: 'fica-app-fc93c',
+  storageBucket: 'fica-app-fc93c.firebasestorage.app',
+  messagingSenderId: '333389813135',
+  appId: '1:333389813135:web:151878ebed613e858a27fa',
 };
 
 export const app = initializeApp(firebaseConfig);

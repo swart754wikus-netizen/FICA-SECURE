@@ -5,7 +5,7 @@ service firebase.storage {
     match /logos/{fileName} {
       allow read: if true; // public branding images
       allow write: if request.auth != null &&
-                     request.auth.token.email == 'YOUR_SUPER_ADMIN_EMAIL_HERE' &&
+                     request.auth.token.email == 'swart754wikus@gmail.com' &&
                      request.resource.size < 5 * 1024 * 1024 &&
                      request.resource.contentType.matches('image/.*');
     }
@@ -21,7 +21,7 @@ service firebase.storage {
                       request.resource.size < 15 * 1024 * 1024 &&
                       request.resource.contentType.matches('image/.*|application/pdf');
       allow read: if request.auth != null &&
-                    (request.auth.token.email == 'YOUR_SUPER_ADMIN_EMAIL_HERE' ||
+                    (request.auth.token.email == 'swart754wikus@gmail.com' ||
                      (request.auth.token.role == 'agent' &&
                       request.auth.token.companyId == companyId));
       allow delete: if false;

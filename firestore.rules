@@ -4,7 +4,7 @@ service cloud.firestore {
 
     function isSuperAdmin() {
       return request.auth != null &&
-             request.auth.token.email == 'YOUR_SUPER_ADMIN_EMAIL_HERE';
+             request.auth.token.email == 'swart754wikus@gmail.com';
     }
     function isAgentFor(companyId) {
       return request.auth != null &&

@@ -14,36 +14,46 @@ Credential verification (`bcrypt.compare`) happens only inside `/api` functions 
 
 Security hardening added beyond the original brief: Firestore-backed rate limiting/lockout on `checkClientAccessCode` and `agentLogin` (`lib/rateLimit.js`), a deterministic custom-token `uid` scheme (`agent:<companyId>` / `client:<companyId>`), a `.create()`-based atomic slug-uniqueness check, Storage upload size/content-type limits, and a Storage rule that allows a client to re-upload (not just create) a document before submission without opening up arbitrary rewrites afterward.
 
-## One-time setup
+## This is a migration, not a fresh project
 
-### 1. Firebase project
+`js/firebaseClient.js` and `firestore.rules`/`storage.rules` are already wired to the real, pre-existing Firebase project (`fica-app-fc93c`) that the v1 app used — the one whose plaintext `accessCode`/`agentPassword` fields were exposed. There is no new project to create. **The company data already in that project (real agencies, real client PII in `FICA_SUBMISSIONS`) stays put** — only the rules, the login path, and the COMPANIES credential fields change.
 
-1. Create a project at the Firebase Console.
-2. **Firestore Database** → create in production mode (any region).
-3. **Storage** → get started, production mode.
-4. **Authentication** → Sign-in method → enable **Email/Password**.
-5. **Authentication** → Users → add one user: your super admin email + a password. This is the *only* account allowed into `/superadmin`.
-6. **Project settings → General → Your apps** → add a Web app. Copy the `firebaseConfig` object into `js/firebaseClient.js` (replace the `YOUR_...` placeholders). This config is public by design — it is not a secret.
-7. **Project settings → Service accounts** → Generate new private key. Download the JSON.
+### 0. Stop the bleed (do this first, before anything else here)
 
-### 2. Security rules
+Paste a deny-all Firestore rule into Console → Firestore Database → Rules for `fica-app-fc93c` right now — the v1 app's plaintext fields are readable by anyone until you do. This will break the old (v1) app immediately; that's the point.
 
-In `firestore.rules` and `storage.rules`, replace every `YOUR_SUPER_ADMIN_EMAIL_HERE` with your real super admin email (must exactly match the Auth user from step 1.5). Paste each file's contents into Firebase Console → Firestore Database → Rules, and → Storage → Rules, then Publish.
+### 1. Get a service account key
 
-(If you prefer the Firebase CLI: `firebase deploy --only firestore:rules,storage:rules` after `firebase init` + `firebase use <project-id>`.)
+Firebase Console → `fica-app-fc93c` → Project settings → Service accounts → Generate new private key. You'll use this for both the migration script (step 2) and the Vercel env vars (step 4).
 
-### 3. Vercel
+### 2. Migrate existing COMPANIES documents
+
+Every company doc currently has plaintext `accessCode`/`agentPassword`. `scripts/migrateCompanies.js` converts them to `accessCodeHash`/`agentPasswordHash` and deletes the plaintext fields. Run it once (with the service account values as env vars — see the script header):
+
+```
+node scripts/migrateCompanies.js rotate
+```
+
+`rotate` issues brand-new codes/passwords per agency (printed once to the console for you to redistribute) instead of re-hashing the exposed originals — since those originals were already publicly readable, hashing them now doesn't undo that exposure. Use `rehash` instead only if you've decided the operational disruption of rotating isn't worth it for your situation.
+
+### 3. Security rules
+
+`firestore.rules`/`storage.rules` already have your super admin email (`swart754wikus@gmail.com`) filled in. Paste each file's contents into Firebase Console → Firestore Database → Rules, and → Storage → Rules, then Publish (this replaces the emergency deny-all from step 0).
+
+(Firebase CLI alternative: `firebase deploy --only firestore:rules,storage:rules --project fica-app-fc93c`.)
+
+### 4. Vercel
 
 1. Import this repo at vercel.com/new.
-2. Project Settings → Environment Variables — set (see `.env.example`):
-   - `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY` — from the service account JSON downloaded above. `FIREBASE_PRIVATE_KEY` must keep its `\n` escapes; paste it exactly as it appears in the JSON's `private_key` field.
-   - `FIREBASE_STORAGE_BUCKET` — e.g. `your-project-id.appspot.com`.
-   - `SUPER_ADMIN_EMAIL` — same address as step 1.5 / the rules files.
+2. Project Settings → Environment Variables — set (see `.env.example`, project ID and storage bucket are already filled in there):
+   - `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY` — from the service account JSON from step 1. `FIREBASE_PRIVATE_KEY` must keep its `\n` escapes; paste it exactly as it appears in the JSON's `private_key` field.
+   - `FIREBASE_STORAGE_BUCKET` = `fica-app-fc93c.firebasestorage.app`
+   - `SUPER_ADMIN_EMAIL` = `swart754wikus@gmail.com`
 3. Deploy.
 
-### 4. Create your first agency
+### 5. Verify, then tell your agencies
 
-Go to `https://<your-vercel-domain>/superadmin`, log in with the super admin account, and create a company. The client link shown on the agent dashboard after logging in as that agency is `https://<your-vercel-domain>/?company=<slug>`.
+Log into `/superadmin` with your existing Firebase Auth account. Existing companies should show up (their submissions are untouched). If you ran `rotate`, distribute each agency's new access code/agent password from the script's output, and update the client links you've sent out if slugs changed (they didn't — only credentials did).
 
 ## Verification checklist
 
