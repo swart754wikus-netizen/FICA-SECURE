@@ -133,12 +133,12 @@ async function downloadAttachment(path, label) {
 function wireEvents() {
   el('loginSubmit').addEventListener('click', async () => {
     hideError('loginError');
-    const slug = el('companyCode').value.trim();
+    const name = el('companyName').value.trim();
     const password = el('agentPassword').value;
-    if (!slug || !password) return showError('loginError', 'Enter your company code and password.');
+    if (!name || !password) return showError('loginError', 'Enter your company name and password.');
     el('loginSubmit').disabled = true;
     try {
-      const result = await apiPost('agentLogin', { slug, password });
+      const result = await apiPost('agentLogin', { name, password });
       await signInWithCustomToken(auth, result.token);
       state.companyId = result.companyId;
       state.name = result.name;

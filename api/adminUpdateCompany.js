@@ -25,6 +25,9 @@ module.exports = async (req, res) => {
   for (const key of allowed) {
     if (key in fields) update[key] = fields[key];
   }
+  // Agent login looks companies up by name (see agentLogin.js), so this
+  // normalized copy must stay in sync whenever the display name changes.
+  if ('name' in update) update.nameLower = update.name.trim().toLowerCase();
 
   // Blank = keep existing hash, matching the v1 "leave blank to keep current password" UX.
   if (accessCode) update.accessCodeHash = await bcrypt.hash(accessCode, 10);

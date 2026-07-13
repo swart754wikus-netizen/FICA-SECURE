@@ -32,6 +32,7 @@ module.exports = async (req, res) => {
   try {
     await db.collection('COMPANIES').doc(slug).create({
       name,
+      nameLower: name.trim().toLowerCase(),
       slug,
       tagline: '',
       logoUrl: '',
