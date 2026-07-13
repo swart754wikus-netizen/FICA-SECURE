@@ -14,6 +14,18 @@ function hideError(id) {
   el(id).hidden = true;
 }
 
+function escapeHtml(str) {
+  return String(str ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function renderAgencyHero(name, logoUrl) {
+  const initial = (name || '?').trim().charAt(0).toUpperCase();
+  const image = logoUrl
+    ? `<img src="${logoUrl}" alt="${escapeHtml(name)} logo">`
+    : `<div class="agency-hero-fallback">${initial}</div>`;
+  el('agencyHero').innerHTML = `${image}<div class="agency-hero-name">${escapeHtml(name)}</div>`;
+}
+
 function summaryFor(sub) {
   const values = Object.values(sub.answers || {});
   return values[0] || '(no summary)';
@@ -145,7 +157,8 @@ function wireEvents() {
       state.slug = result.slug;
 
       el('topbar').hidden = false;
-      el('topbarBrand').textContent = result.name;
+      el('topbarBrand').textContent = 'Agent Portal';
+      renderAgencyHero(result.name, result.logoUrl);
       el('clientLink').value = `${location.origin}/?company=${result.slug}`;
       el('step-login').hidden = true;
       el('step-dashboard').hidden = false;
