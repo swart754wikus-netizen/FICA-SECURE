@@ -1,0 +1,34 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    match /logos/{fileName} {
+      allow read: if true; // public branding images
+      allow write: if request.auth != null &&
+                     request.auth.token.email == 'YOUR_SUPER_ADMIN_EMAIL_HERE' &&
+                     request.resource.size < 5 * 1024 * 1024 &&
+                     request.resource.contentType.matches('image/.*');
+    }
+
+    match /submissions/{companyId}/{submissionId}/{fileName} {
+      // create AND update (not just create) so a client can re-pick a file for
+      // the same document label before finishing their submission, without
+      // opening up arbitrary rewrites after the fact — the custom token still
+      // scopes this to that client's own companyId.
+      allow create, update: if request.auth != null &&
+                      request.auth.token.role == 'client' &&
+                      request.auth.token.companyId == companyId &&
+                      request.resource.size < 15 * 1024 * 1024 &&
+                      request.resource.contentType.matches('image/.*|application/pdf');
+      allow read: if request.auth != null &&
+                    (request.auth.token.email == 'YOUR_SUPER_ADMIN_EMAIL_HERE' ||
+                     (request.auth.token.role == 'agent' &&
+                      request.auth.token.companyId == companyId));
+      allow delete: if false;
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

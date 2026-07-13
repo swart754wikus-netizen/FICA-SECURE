@@ -1,0 +1,8 @@
+{
+  "cleanUrls": true,
+  "rewrites": [
+    { "source": "/", "destination": "/index.html" },
+    { "source": "/agent", "destination": "/agent.html" },
+    { "source": "/superadmin", "destination": "/superadmin.html" }
+  ]
+}

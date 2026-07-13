@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FICA Super Admin</title>
+<link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+
+<div class="topbar no-print" id="topbar" hidden>
+  <div>FICA Super Admin</div>
+  <button class="secondary" id="logoutBtn">Log out</button>
+</div>
+
+<div class="page page--wide" id="app">
+
+  <section id="step-login" class="card" style="max-width:420px; margin: 60px auto;">
+    <h2>Super admin login</h2>
+    <div class="field">
+      <label for="email">Email</label>
+      <input type="text" id="email" autocomplete="username">
+    </div>
+    <div class="field">
+      <label for="password">Password</label>
+      <input type="password" id="password" autocomplete="current-password">
+    </div>
+    <button id="loginSubmit">Log in</button>
+    <div class="error" id="loginError" hidden></div>
+  </section>
+
+  <section id="step-dashboard" hidden>
+    <div class="stat-grid" id="statGrid"></div>
+
+    <div class="card">
+      <h2>Create company</h2>
+      <div class="field"><label for="newName">Agency name</label><input type="text" id="newName"></div>
+      <div class="field"><label for="newSlug">Slug (used in client link, e.g. acme-realty)</label><input type="text" id="newSlug"></div>
+      <div class="field"><label for="newAccessCode">Client access code</label><input type="text" id="newAccessCode"></div>
+      <div class="field"><label for="newAgentPassword">Agent password</label><input type="text" id="newAgentPassword"></div>
+      <div class="field">
+        <label for="newStatus">Status</label>
+        <select id="newStatus"><option value="trial">Trial</option><option value="active">Active</option><option value="suspended">Suspended</option></select>
+      </div>
+      <div class="field">
+        <label for="newPayment">Payment</label>
+        <select id="newPayment"><option value="unpaid">Unpaid</option><option value="paid">Paid</option></select>
+      </div>
+      <button id="createSubmit">Create company</button>
+      <div class="error" id="createError" hidden></div>
+    </div>
+
+    <div class="card">
+      <input type="text" id="searchInput" placeholder="Search companies…" style="margin-bottom:16px;">
+      <table>
+        <thead><tr><th>Name</th><th>Slug</th><th>Status</th><th>Payment</th><th></th></tr></thead>
+        <tbody id="companiesBody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="step-edit" class="card" hidden>
+    <button type="button" class="secondary no-print" id="editBack">Back</button>
+    <h2 id="editTitle">Edit company</h2>
+    <div class="field"><label for="editName">Agency name</label><input type="text" id="editName"></div>
+    <div class="field"><label for="editTagline">Tagline</label><input type="text" id="editTagline"></div>
+    <div class="field">
+      <label for="editLogo">Logo</label>
+      <img id="editLogoPreview" src="" alt="" style="max-height:60px; display:block; margin-bottom:8px;" hidden>
+      <input type="file" id="editLogo" accept="image/*">
+    </div>
+    <div class="field">
+      <label for="editStatus">Status</label>
+      <select id="editStatus"><option value="trial">Trial</option><option value="active">Active</option><option value="suspended">Suspended</option></select>
+    </div>
+    <div class="field">
+      <label for="editPayment">Payment</label>
+      <select id="editPayment"><option value="unpaid">Unpaid</option><option value="paid">Paid</option></select>
+    </div>
+    <div class="field"><label for="editAccessCode">New client access code</label><input type="text" id="editAccessCode" placeholder="Leave blank to keep current"></div>
+    <div class="field"><label for="editAgentPassword">New agent password</label><input type="text" id="editAgentPassword" placeholder="Leave blank to keep current"></div>
+    <div style="display:flex; gap:10px;">
+      <button id="editSave">Save changes</button>
+      <button type="button" class="danger" id="editDelete">Delete company</button>
+    </div>
+    <div class="error" id="editError" hidden></div>
+  </section>
+
+</div>
+<script type="module" src="/js/superadmin.js"></script>
+</body>
+</html>

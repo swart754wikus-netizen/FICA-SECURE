@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FICA Agent Portal</title>
+<link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+
+<div class="topbar no-print" id="topbar" hidden>
+  <div id="topbarBrand">Agent Portal</div>
+  <button class="secondary" id="logoutBtn">Log out</button>
+</div>
+
+<div class="page page--wide" id="app">
+
+  <section id="step-login" class="card" style="max-width:420px; margin: 60px auto;">
+    <h2>Agent login</h2>
+    <div class="field">
+      <label for="companyCode">Company code</label>
+      <input type="text" id="companyCode" autocomplete="off">
+    </div>
+    <div class="field">
+      <label for="agentPassword">Agent password</label>
+      <input type="password" id="agentPassword" autocomplete="off">
+    </div>
+    <button id="loginSubmit">Log in</button>
+    <div class="error" id="loginError" hidden></div>
+  </section>
+
+  <section id="step-dashboard" hidden>
+    <div class="card no-print">
+      <h2>Client link</h2>
+      <p class="field-hint">Share this link with clients so they can complete their FICA form.</p>
+      <div style="display:flex; gap:10px;">
+        <input type="text" id="clientLink" readonly style="flex:1;">
+        <button type="button" class="secondary" id="copyLinkBtn">Copy</button>
+      </div>
+    </div>
+
+    <div class="stat-grid" id="statGrid"></div>
+
+    <div class="card">
+      <div style="display:flex; gap:12px; margin-bottom:16px; flex-wrap:wrap;">
+        <input type="text" id="searchInput" placeholder="Search submissions…" style="flex:1; min-width:200px;">
+        <select id="typeFilter">
+          <option value="">All types</option>
+          <option value="natural">Natural Person</option>
+          <option value="trust">Trust</option>
+          <option value="partnership">Partnership</option>
+          <option value="enhanced">Enhanced Due Diligence</option>
+        </select>
+      </div>
+      <table>
+        <thead><tr><th>Date</th><th>Type</th><th>Summary</th></tr></thead>
+        <tbody id="submissionsBody"></tbody>
+      </table>
+      <p id="emptyState" class="field-hint" hidden>No submissions yet.</p>
+    </div>
+  </section>
+
+  <section id="step-detail" class="card doc-view" hidden>
+    <div class="no-print" style="display:flex; gap:10px; margin-bottom:16px;">
+      <button type="button" class="secondary" id="detailBack">Back</button>
+      <button type="button" id="printBtn">Print</button>
+    </div>
+    <div id="detailContent"></div>
+  </section>
+
+</div>
+<script type="module" src="/js/agent.js"></script>
+</body>
+</html>

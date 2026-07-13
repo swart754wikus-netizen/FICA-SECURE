@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FICA Client Portal</title>
+<link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+<div class="page" id="app">
+
+  <div class="brand-header" id="brandHeader" hidden>
+    <img id="brandLogo" src="" alt="" hidden>
+    <div>
+      <h1 id="brandName">FICA Portal</h1>
+      <p id="brandTagline"></p>
+    </div>
+  </div>
+
+  <section id="step-auth" class="card">
+    <h2>Enter your access code</h2>
+    <p class="field-hint">Your real estate agent will have given you an access code to continue.</p>
+    <div class="field">
+      <label for="accessCode">Access code</label>
+      <input type="text" id="accessCode" autocomplete="off">
+    </div>
+    <button id="authSubmit">Continue</button>
+    <div class="error" id="authError" hidden></div>
+  </section>
+
+  <section id="step-type" class="card" hidden>
+    <h2>Select the type of FICA form</h2>
+    <div class="type-grid" id="typeGrid"></div>
+  </section>
+
+  <section id="step-form" class="card" hidden>
+    <div class="progress-bar"><div id="formProgress" style="width:0%"></div></div>
+    <h2 id="formTitle"></h2>
+    <form id="ficaForm"></form>
+    <div class="error" id="formError" hidden></div>
+    <div style="display:flex; gap:10px; margin-top:16px;">
+      <button type="button" class="secondary" id="formBack">Back</button>
+      <button type="button" id="formNext">Continue</button>
+    </div>
+  </section>
+
+  <section id="step-documents" class="card" hidden>
+    <h2>Upload required documents</h2>
+    <div id="documentList"></div>
+    <div class="error" id="documentsError" hidden></div>
+    <div style="display:flex; gap:10px; margin-top:16px;">
+      <button type="button" class="secondary" id="documentsBack">Back</button>
+      <button type="button" id="documentsNext">Continue</button>
+    </div>
+  </section>
+
+  <section id="step-signature" class="card" hidden>
+    <h2>Sign to confirm</h2>
+    <p class="field-hint">Please sign using your mouse or finger below.</p>
+    <canvas id="signatureCanvas" class="signature-pad" width="600" height="180"></canvas>
+    <div style="display:flex; gap:10px; margin-top:12px;">
+      <button type="button" class="secondary" id="signatureClear">Clear</button>
+    </div>
+    <div class="error" id="signatureError" hidden></div>
+    <div style="display:flex; gap:10px; margin-top:16px;">
+      <button type="button" class="secondary" id="signatureBack">Back</button>
+      <button type="button" id="signatureSubmit">Submit</button>
+    </div>
+  </section>
+
+  <section id="step-success" class="card" hidden>
+    <h2 class="success-banner">Submission received</h2>
+    <p>Thank you — your FICA submission has been sent to the agency. You may close this window.</p>
+  </section>
+
+</div>
+<script type="module" src="/js/client.js"></script>
+</body>
+</html>

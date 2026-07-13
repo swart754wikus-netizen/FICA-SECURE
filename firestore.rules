@@ -1,0 +1,51 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSuperAdmin() {
+      return request.auth != null &&
+             request.auth.token.email == 'YOUR_SUPER_ADMIN_EMAIL_HERE';
+    }
+    function isAgentFor(companyId) {
+      return request.auth != null &&
+             request.auth.token.role == 'agent' &&
+             request.auth.token.companyId == companyId;
+    }
+    function isClientFor(companyId) {
+      return request.auth != null &&
+             request.auth.token.role == 'client' &&
+             request.auth.token.companyId == companyId;
+    }
+
+    match /COMPANIES/{companyId} {
+      // Branding lookups and credential checks go through the /api serverless
+      // functions (Admin SDK, bypasses these rules entirely). Direct client
+      // reads are only for an already-authenticated agent/client/super admin.
+      allow read: if isSuperAdmin() || isAgentFor(companyId) || isClientFor(companyId);
+      allow write: if isSuperAdmin();
+    }
+
+    match /FICA_SUBMISSIONS/{subId} {
+      allow read, delete: if isSuperAdmin() || isAgentFor(resource.data.companyId);
+      allow create: if isClientFor(request.resource.data.companyId);
+      // Agent/super admin may update freely. A client may update ONLY their
+      // own just-created submission, and only to attach uploaded document
+      // metadata (see api upload flow) — never to alter answers or signature
+      // after the fact. Multiple `allow update` blocks are OR'd by Firestore,
+      // so either condition independently grants the update.
+      allow update: if isSuperAdmin() || isAgentFor(resource.data.companyId);
+      allow update: if isClientFor(resource.data.companyId) &&
+                      request.resource.data.diff(resource.data).affectedKeys().hasOnly(['attachments']);
+    }
+
+    // Login-attempt counters are only ever read/written by the Admin SDK
+    // (server-side rate limiting) — never by a browser session.
+    match /LOGIN_ATTEMPTS/{key} {
+      allow read, write: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "name": "fica-secure",
+  "version": "1.0.0",
+  "private": true,
+  "description": "FICA compliance portal for South African real estate agencies",
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "firebase-admin": "^12.1.0"
+  }
+}
