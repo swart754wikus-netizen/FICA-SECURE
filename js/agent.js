@@ -1,5 +1,6 @@
-import { auth, db, signInWithCustomToken, signOut, apiPost } from './firebaseClient.js';
-import { collection, query, where, orderBy, getDocs } from 'https://www.gstatic.com/firebasejs/12.0.0/firebase-firestore.js';
+import { auth, db, storage, signInWithCustomToken, signOut, apiPost } from './firebaseClient.js';
+import { collection, query, where, getDocs } from 'https://www.gstatic.com/firebasejs/12.0.0/firebase-firestore.js';
+import { ref, getBytes } from 'https://www.gstatic.com/firebasejs/12.0.0/firebase-storage.js';
 
 const state = { companyId: null, name: '', slug: '', submissions: [] };
 const el = (id) => document.getElementById(id);
@@ -25,9 +26,15 @@ function formatDate(ts) {
 }
 
 async function loadSubmissions() {
-  const q = query(collection(db, 'FICA_SUBMISSIONS'), where('companyId', '==', state.companyId), orderBy('createdAt', 'desc'));
+  // Sorted client-side rather than via Firestore orderBy() — combining
+  // where() on one field with orderBy() on another needs a composite index,
+  // which doesn't exist for this project and isn't worth provisioning for a
+  // per-agency result set of this size.
+  const q = query(collection(db, 'FICA_SUBMISSIONS'), where('companyId', '==', state.companyId));
   const snap = await getDocs(q);
-  state.submissions = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  state.submissions = snap.docs
+    .map((d) => ({ id: d.id, ...d.data() }))
+    .sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
   renderStats();
   renderTable();
 }
@@ -81,7 +88,7 @@ function renderDetail(id) {
     .join('');
 
   const attachments = Object.entries(sub.attachments || {})
-    .map(([label, att]) => `<li><a href="${att.url}" target="_blank" rel="noopener">${label}</a></li>`)
+    .map(([label, att]) => `<li><button type="button" class="secondary" data-attachment-path="${att.path}" data-attachment-label="${label}">${label}</button></li>`)
     .join('');
 
   el('detailContent').innerHTML = `
@@ -96,6 +103,31 @@ function renderDetail(id) {
 
   el('step-dashboard').hidden = true;
   el('step-detail').hidden = false;
+
+  el('detailContent').querySelectorAll('[data-attachment-path]').forEach((btn) => {
+    btn.addEventListener('click', () => downloadAttachment(btn.dataset.attachmentPath, btn.dataset.attachmentLabel));
+  });
+}
+
+async function downloadAttachment(path, label) {
+  // Fetched on demand via the SDK (rule-enforced) rather than linking a
+  // stored getDownloadURL() — see client.js for why that URL is never
+  // generated or stored in the first place.
+  try {
+    const bytes = await getBytes(ref(storage, path));
+    const blob = new Blob([bytes]);
+    const blobUrl = URL.createObjectURL(blob);
+    const filename = path.split('/').pop() || label;
+    const a = document.createElement('a');
+    a.href = blobUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 30000);
+  } catch (err) {
+    alert(`Could not load ${label}: ${err.message || err}`);
+  }
 }
 
 function wireEvents() {

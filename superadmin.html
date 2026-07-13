@@ -35,7 +35,7 @@
     <div class="card">
       <h2>Create company</h2>
       <div class="field"><label for="newName">Agency name</label><input type="text" id="newName"></div>
-      <div class="field"><label for="newSlug">Slug (used in client link, e.g. acme-realty)</label><input type="text" id="newSlug"></div>
+      <div class="field"><label for="newSlug">Slug (used in client link, e.g. acme-realty)</label><input type="text" id="newSlug" pattern="[a-z0-9-]+" title="Lowercase letters, numbers, and hyphens only"></div>
       <div class="field"><label for="newAccessCode">Client access code</label><input type="text" id="newAccessCode"></div>
       <div class="field"><label for="newAgentPassword">Agent password</label><input type="text" id="newAgentPassword"></div>
       <div class="field">

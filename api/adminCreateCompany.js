@@ -15,6 +15,12 @@ module.exports = async (req, res) => {
   if (!name || !slug || !accessCode || !agentPassword) {
     return res.status(400).json({ error: 'name, slug, accessCode, and agentPassword are required' });
   }
+  // slug is used verbatim as a Firestore document ID and as a URL query value
+  // (index.html?company=<slug>), so it must be restricted to characters that
+  // are safe in both contexts.
+  if (!/^[a-z0-9-]+$/.test(slug)) {
+    return res.status(400).json({ error: 'Slug may only contain lowercase letters, numbers, and hyphens' });
+  }
 
   const [accessCodeHash, agentPasswordHash] = await Promise.all([
     bcrypt.hash(accessCode, 10),

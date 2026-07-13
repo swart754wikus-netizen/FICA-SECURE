@@ -30,6 +30,10 @@ module.exports = async (req, res) => {
   if (accessCode) update.accessCodeHash = await bcrypt.hash(accessCode, 10);
   if (agentPassword) update.agentPasswordHash = await bcrypt.hash(agentPassword, 10);
 
+  if (Object.keys(update).length === 0) {
+    return res.status(400).json({ error: 'No fields to update' });
+  }
+
   await ref.update(update);
   return res.status(200).json({ companyId });
 };

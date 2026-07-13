@@ -1,6 +1,6 @@
 import { auth, db, storage, signInWithCustomToken, apiGet, apiPost } from './firebaseClient.js';
 import { collection, addDoc, doc, updateDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/12.0.0/firebase-firestore.js';
-import { ref, uploadBytes, getDownloadURL } from 'https://www.gstatic.com/firebasejs/12.0.0/firebase-storage.js';
+import { ref, uploadBytes } from 'https://www.gstatic.com/firebasejs/12.0.0/firebase-storage.js';
 import { FORM_TYPES, REQUIRED_DOCUMENTS_DEFAULT } from './formDefinitions.js';
 import { renderForm, validateForm, collectAnswers } from './formRenderer.js';
 import { initSignaturePad } from './signaturePad.js';
@@ -74,7 +74,7 @@ function renderTypeGrid() {
 }
 
 function renderDocumentList() {
-  const docs = state.requiredDocuments && state.requiredDocuments.length ? state.requiredDocuments : REQUIRED_DOCUMENTS_DEFAULT;
+  const docs = Array.isArray(state.requiredDocuments) ? state.requiredDocuments : REQUIRED_DOCUMENTS_DEFAULT;
   el('documentList').innerHTML = docs
     .map(
       (label, i) => `<div class="field">
@@ -108,8 +108,11 @@ async function submitFica(signatureDataUrl) {
     const path = `submissions/${state.companyId}/${submissionRef.id}/${sanitize(label)}.${ext}`;
     const storageRef = ref(storage, path);
     await uploadBytes(storageRef, file);
-    const url = await getDownloadURL(storageRef);
-    attachments[label] = { path, url };
+    // Deliberately not calling getDownloadURL(): its bearer-token link
+    // bypasses storage.rules for anyone who ever obtains that URL string.
+    // The agent portal fetches bytes on demand via the SDK instead, which
+    // stays rule-enforced.
+    attachments[label] = { path };
   }
 
   if (Object.keys(attachments).length) {
