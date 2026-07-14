@@ -22,6 +22,36 @@ body {
   color: var(--text);
 }
 
+/* Client portal only — warmer, friendlier palette than the internal
+   agent/admin tools. Same variable names as :root, so every existing
+   component (.card, buttons, .type-card, progress bar, etc.) picks this up
+   automatically with no per-component changes needed. */
+body.client-portal {
+  --navy: #2B6CB0;
+  --navy-dark: #1E5288;
+  --accent: #D97706;
+  --bg: #FAF3E9;
+  --surface: #FFFDF9;
+  --border: #E8DCC8;
+  --text: #2B2420;
+  --text-muted: #6B5D4F;
+  --radius: 14px;
+  font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+body.client-portal h1,
+body.client-portal h2 {
+  font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+body.client-portal .trust-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+body.client-portal .trust-note svg { flex-shrink: 0; color: var(--navy); }
+
 .page {
   max-width: 720px;
   margin: 0 auto;
@@ -52,7 +82,7 @@ body {
   border-radius: var(--radius);
   box-shadow: 0 4px 16px rgba(15, 23, 42, 0.06);
 }
-.brand-header img { height: 180px; width: auto; max-width: 400px; object-fit: contain; }
+.brand-header img { height: 110px; width: auto; max-width: 320px; object-fit: contain; }
 .brand-header h1 { font-size: 28px; font-weight: 700; margin: 0; letter-spacing: -0.01em; }
 .brand-header p { margin: 0; color: var(--text-muted); font-size: 15px; }
 
