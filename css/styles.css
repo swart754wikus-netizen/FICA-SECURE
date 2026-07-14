@@ -236,8 +236,8 @@ tr:hover td { background: #f8fafc; cursor: pointer; }
   border-radius: 0 6px 6px 0;
 }
 .doc-view .qa:nth-child(odd) { background: #f8fafc; }
-.doc-view .qa .q { font-weight: 600; font-size: 13px; color: var(--text-muted); }
-.doc-view .qa .a { font-size: 15px; margin-top: 2px; }
+.doc-view .qa .q { font-weight: 700; font-size: 15px; color: var(--text); margin-bottom: 3px; }
+.doc-view .qa .a { font-size: 15px; color: var(--text-muted); }
 .doc-view .risk-flag {
   display: inline-block;
   background: #fef3c7;

@@ -150,12 +150,12 @@ function renderDetail(id) {
   const typeColor = TYPE_COLORS[sub.type] || '#64748b';
 
   const qa = orderedAnswerEntries(sub)
-    .map(([q, a]) => {
+    .map(([q, a], index) => {
       const isFlagged = RISK_FLAG_LABELS.has(q) && String(a).trim().toLowerCase() === 'yes';
       const valueHtml = isFlagged
         ? `<span class="risk-flag">⚠ ${escapeHtml(a)}</span>`
         : escapeHtml(a) || '—';
-      return `<div class="qa" style="border-left-color:${typeColor}"><div class="q">${escapeHtml(q)}</div><div class="a">${valueHtml}</div></div>`;
+      return `<div class="qa" style="border-left-color:${typeColor}"><div class="q">${index + 1}. ${escapeHtml(q)}</div><div class="a">${valueHtml}</div></div>`;
     })
     .join('');
 
