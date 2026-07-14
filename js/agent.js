@@ -180,11 +180,17 @@ function renderDetail(id) {
   el('step-detail').hidden = false;
 
   el('detailContent').querySelectorAll('[data-attachment-path]').forEach((btn) => {
-    btn.addEventListener('click', () => downloadAttachment(btn.dataset.attachmentPath, btn.dataset.attachmentLabel));
+    btn.addEventListener('click', () => downloadAttachment(btn));
   });
 }
 
-async function downloadAttachment(path, label) {
+async function downloadAttachment(btn) {
+  const path = btn.dataset.attachmentPath;
+  const label = btn.dataset.attachmentLabel;
+  const originalText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Downloading…';
+
   // Fetched on demand via the SDK (rule-enforced) rather than linking a
   // stored getDownloadURL() — see client.js for why that URL is never
   // generated or stored in the first place.
@@ -200,8 +206,12 @@ async function downloadAttachment(path, label) {
     a.click();
     a.remove();
     setTimeout(() => URL.revokeObjectURL(blobUrl), 30000);
+    btn.textContent = 'Downloaded ✓';
+    setTimeout(() => { btn.textContent = originalText; btn.disabled = false; }, 2000);
   } catch (err) {
-    alert(`Could not load ${label}: ${err.message || err}`);
+    console.error('downloadAttachment failed for', path, err);
+    btn.textContent = `Failed — ${err.code || err.message || 'try again'}`;
+    btn.disabled = false;
   }
 }
 
