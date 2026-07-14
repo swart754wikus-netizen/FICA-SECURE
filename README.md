@@ -51,6 +51,17 @@ node scripts/migrateCompanies.js rotate
    - `SUPER_ADMIN_EMAIL` = `swart754wikus@gmail.com`
 3. Deploy.
 
+### 4.5 Storage CORS (needed for the agent portal's document downloads)
+
+Firebase Storage buckets have no CORS configuration by default. The agent portal fetches documents via authenticated `getBytes()` calls (deliberately, instead of the bypass-prone `getDownloadURL()` link — see architecture notes above), and browsers block that unless the bucket explicitly allows the calling origin:
+
+```
+FIREBASE_PROJECT_ID=... FIREBASE_CLIENT_EMAIL=... FIREBASE_PRIVATE_KEY=... \
+  node scripts/setStorageCors.js https://your-vercel-domain.vercel.app
+```
+
+Re-run this whenever you add a custom domain. Without it, document download buttons in the agent portal fail with a CORS error in the browser console (not a permissions error — the rules/auth are separately correct).
+
 ### 5. Verify, then tell your agencies
 
 Log into `/superadmin` with your existing Firebase Auth account. Existing companies should show up (their submissions are untouched). If you ran `rotate`, distribute each agency's new access code/agent password from the script's output, and update the client links you've sent out if slugs changed (they didn't — only credentials did).
