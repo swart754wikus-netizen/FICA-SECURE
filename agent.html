@@ -70,6 +70,19 @@
     <div id="detailContent"></div>
   </section>
 
+  <div id="docPreviewOverlay" class="doc-preview-overlay no-print" hidden>
+    <div class="doc-preview-panel">
+      <div class="doc-preview-header">
+        <strong id="docPreviewTitle"></strong>
+        <div style="display:flex; gap:8px;">
+          <a id="docPreviewDownload" class="secondary btn" download>Download</a>
+          <button type="button" class="secondary" id="docPreviewClose">Close</button>
+        </div>
+      </div>
+      <div id="docPreviewBody" class="doc-preview-body"></div>
+    </div>
+  </div>
+
 </div>
 <footer class="site-footer no-print">Powered by <a href="https://gls-technologies.co.za/" target="_blank" rel="noopener">GLS Technologies</a></footer>
 <script type="module" src="/js/agent.js"></script>

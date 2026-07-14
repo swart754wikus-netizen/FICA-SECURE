@@ -160,7 +160,10 @@ function renderDetail(id) {
     .join('');
 
   const attachments = Object.entries(sub.attachments || {})
-    .map(([label, att]) => `<li><button type="button" class="secondary" data-attachment-path="${escapeHtml(att.path)}" data-attachment-label="${escapeHtml(label)}">${escapeHtml(label)}</button></li>`)
+    .map(
+      ([label, att]) =>
+        `<li><button type="button" class="secondary" data-attachment-path="${escapeHtml(att.path)}" data-attachment-label="${escapeHtml(label)}" data-attachment-type="${escapeHtml(att.contentType || '')}">${escapeHtml(label)}</button></li>`
+    )
     .join('');
 
   el('detailContent').innerHTML = `
@@ -180,38 +183,68 @@ function renderDetail(id) {
   el('step-detail').hidden = false;
 
   el('detailContent').querySelectorAll('[data-attachment-path]').forEach((btn) => {
-    btn.addEventListener('click', () => downloadAttachment(btn));
+    btn.addEventListener('click', () => viewAttachment(btn));
   });
 }
 
-async function downloadAttachment(btn) {
+let activePreviewUrl = null;
+
+// Submissions made before contentType was recorded (see client.js) fall
+// back to guessing from the file extension baked into the storage path.
+function guessContentType(path) {
+  const ext = (path.split('.').pop() || '').toLowerCase();
+  if (ext === 'pdf') return 'application/pdf';
+  if (['jpg', 'jpeg'].includes(ext)) return 'image/jpeg';
+  if (ext === 'png') return 'image/png';
+  if (ext === 'heic') return 'image/heic';
+  return 'application/octet-stream';
+}
+
+async function viewAttachment(btn) {
   const path = btn.dataset.attachmentPath;
   const label = btn.dataset.attachmentLabel;
+  const contentType = btn.dataset.attachmentType || guessContentType(path);
   const originalText = btn.textContent;
   btn.disabled = true;
-  btn.textContent = 'Downloading…';
+  btn.textContent = 'Opening…';
 
   // Fetched on demand via the SDK (rule-enforced) rather than linking a
   // stored getDownloadURL() — see client.js for why that URL is never
   // generated or stored in the first place.
   try {
     const bytes = await getBytes(ref(storage, path));
-    const blob = new Blob([bytes]);
-    const blobUrl = URL.createObjectURL(blob);
-    const filename = path.split('/').pop() || label;
-    const a = document.createElement('a');
-    a.href = blobUrl;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(blobUrl), 30000);
-    btn.textContent = 'Downloaded ✓';
-    setTimeout(() => { btn.textContent = originalText; btn.disabled = false; }, 2000);
+    const blob = new Blob([bytes], { type: contentType });
+    if (activePreviewUrl) URL.revokeObjectURL(activePreviewUrl);
+    activePreviewUrl = URL.createObjectURL(blob);
+
+    el('docPreviewTitle').textContent = label;
+    el('docPreviewDownload').href = activePreviewUrl;
+    el('docPreviewDownload').download = path.split('/').pop() || label;
+
+    if (contentType.startsWith('image/')) {
+      el('docPreviewBody').innerHTML = `<img src="${activePreviewUrl}" alt="${escapeHtml(label)}">`;
+    } else if (contentType === 'application/pdf') {
+      el('docPreviewBody').innerHTML = `<iframe src="${activePreviewUrl}" title="${escapeHtml(label)}"></iframe>`;
+    } else {
+      el('docPreviewBody').innerHTML = `<p class="field-hint">Preview not supported for this file type — use Download instead.</p>`;
+    }
+
+    el('docPreviewOverlay').hidden = false;
+    btn.textContent = originalText;
+    btn.disabled = false;
   } catch (err) {
-    console.error('downloadAttachment failed for', path, err);
+    console.error('viewAttachment failed for', path, err);
     btn.textContent = `Failed — ${err.code || err.message || 'try again'}`;
     btn.disabled = false;
+  }
+}
+
+function closeDocPreview() {
+  el('docPreviewOverlay').hidden = true;
+  el('docPreviewBody').innerHTML = '';
+  if (activePreviewUrl) {
+    URL.revokeObjectURL(activePreviewUrl);
+    activePreviewUrl = null;
   }
 }
 
@@ -263,6 +296,10 @@ function wireEvents() {
     el('step-dashboard').hidden = false;
   });
   el('printBtn').addEventListener('click', () => window.print());
+  el('docPreviewClose').addEventListener('click', closeDocPreview);
+  el('docPreviewOverlay').addEventListener('click', (e) => {
+    if (e.target.id === 'docPreviewOverlay') closeDocPreview();
+  });
 }
 
 wireEvents();

@@ -116,8 +116,10 @@ async function submitFica(signatureDataUrl) {
     // Deliberately not calling getDownloadURL(): its bearer-token link
     // bypasses storage.rules for anyone who ever obtains that URL string.
     // The agent portal fetches bytes on demand via the SDK instead, which
-    // stays rule-enforced.
-    attachments[label] = { path };
+    // stays rule-enforced. contentType is stored so the agent portal can
+    // preview the file inline instead of guessing a MIME type from the
+    // file extension.
+    attachments[label] = { path, contentType: file.type || 'application/octet-stream' };
   }
 
   if (Object.keys(attachments).length) {
