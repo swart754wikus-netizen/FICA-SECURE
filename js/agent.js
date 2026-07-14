@@ -1,9 +1,54 @@
 import { auth, db, storage, signInWithCustomToken, signOut, apiPost } from './firebaseClient.js';
 import { collection, query, where, getDocs } from 'https://www.gstatic.com/firebasejs/12.0.0/firebase-firestore.js';
 import { ref, getBytes } from 'https://www.gstatic.com/firebasejs/12.0.0/firebase-storage.js';
+import { FORM_TYPES } from './formDefinitions.js';
 
 const state = { companyId: null, name: '', slug: '', submissions: [] };
 const el = (id) => document.getElementById(id);
+
+const TYPE_COLORS = { natural: '#2563eb', trust: '#7c3aed', partnership: '#0d9488', enhanced: '#dc2626' };
+
+// Yes/No questions where "Yes" is a compliance flag worth an agent's
+// attention at a glance, not just plain text to read past.
+const RISK_FLAG_LABELS = new Set([
+  'Have you ever held a prominent public function in a foreign country?',
+  'Have you held a domestic prominent influential position in the last 12 months?',
+  'Are you a family member or close associate of a PEP/DPIP/DPEP?',
+  'Enhanced due diligence required?',
+  'Discuss with FCO?',
+]);
+
+// Firestore does not guarantee map-field key order on read-back, so
+// Object.entries(sub.answers) can come back in a different order than the
+// form was filled in — wrong for a compliance document, which should read
+// in the same order as the form itself. Rebuild that order from the form
+// definition instead of trusting whatever order Firestore returns.
+function orderedAnswerEntries(sub) {
+  const answers = sub.answers || {};
+  const formDef = FORM_TYPES[sub.type];
+  if (!formDef) return Object.entries(answers);
+
+  const seen = new Set();
+  const ordered = [];
+
+  function addField(field) {
+    if (field.label in answers) {
+      ordered.push([field.label, answers[field.label]]);
+      seen.add(field.label);
+    }
+    if (field.special) field.special.reveal.forEach(addField);
+  }
+  formDef.fields.forEach(addField);
+
+  // Any leftover keys not in the current form definition (e.g. the form
+  // shape changed after this submission was made) still get shown, just
+  // appended at the end rather than silently dropped.
+  Object.entries(answers).forEach(([label, value]) => {
+    if (!seen.has(label)) ordered.push([label, value]);
+  });
+
+  return ordered;
+}
 
 function showError(id, message) {
   const box = el(id);
@@ -30,8 +75,10 @@ function renderAgencyHero(name, logoUrl) {
 }
 
 function summaryFor(sub) {
-  const values = Object.values(sub.answers || {});
-  return values[0] || '(no summary)';
+  const formDef = FORM_TYPES[sub.type];
+  const firstLabel = formDef?.fields?.[0]?.label;
+  const value = firstLabel && sub.answers ? sub.answers[firstLabel] : undefined;
+  return value || Object.values(sub.answers || {})[0] || '(no summary)';
 }
 
 function formatDate(ts) {
@@ -58,13 +105,15 @@ function renderStats() {
   const counts = { natural: 0, trust: 0, partnership: 0, enhanced: 0 };
   state.submissions.forEach((s) => { if (counts[s.type] != null) counts[s.type]++; });
   const cards = [
-    { label: 'Total submissions', value: state.submissions.length },
-    { label: 'Natural Person', value: counts.natural },
-    { label: 'Trust', value: counts.trust },
-    { label: 'Partnership', value: counts.partnership },
-    { label: 'Enhanced DD', value: counts.enhanced },
+    { label: 'Total submissions', value: state.submissions.length, color: '#0f2c4c' },
+    { label: 'Natural Person', value: counts.natural, color: TYPE_COLORS.natural },
+    { label: 'Trust', value: counts.trust, color: TYPE_COLORS.trust },
+    { label: 'Partnership', value: counts.partnership, color: TYPE_COLORS.partnership },
+    { label: 'Enhanced DD', value: counts.enhanced, color: TYPE_COLORS.enhanced },
   ];
-  el('statGrid').innerHTML = cards.map((c) => `<div class="stat-card"><div class="value">${c.value}</div><div class="label">${c.label}</div></div>`).join('');
+  el('statGrid').innerHTML = cards
+    .map((c) => `<div class="stat-card" style="--stat-color:${c.color}"><div class="value">${c.value}</div><div class="label">${c.label}</div></div>`)
+    .join('');
 }
 
 function renderTable() {
@@ -83,8 +132,8 @@ function renderTable() {
     .map(
       (s) => `<tr data-id="${s.id}">
         <td>${formatDate(s.createdAt)}</td>
-        <td>${s.typeName}</td>
-        <td>${summaryFor(s)}</td>
+        <td><span class="type-badge" style="background:${TYPE_COLORS[s.type] || '#64748b'}">${escapeHtml(s.typeName)}</span></td>
+        <td>${escapeHtml(summaryFor(s))}</td>
       </tr>`
     )
     .join('');
@@ -98,17 +147,28 @@ function renderDetail(id) {
   const sub = state.submissions.find((s) => s.id === id);
   if (!sub) return;
 
-  const qa = Object.entries(sub.answers || {})
-    .map(([q, a]) => `<div class="qa"><div class="q">${q}</div><div class="a">${a || '—'}</div></div>`)
+  const typeColor = TYPE_COLORS[sub.type] || '#64748b';
+
+  const qa = orderedAnswerEntries(sub)
+    .map(([q, a]) => {
+      const isFlagged = RISK_FLAG_LABELS.has(q) && String(a).trim().toLowerCase() === 'yes';
+      const valueHtml = isFlagged
+        ? `<span class="risk-flag">⚠ ${escapeHtml(a)}</span>`
+        : escapeHtml(a) || '—';
+      return `<div class="qa" style="border-left-color:${typeColor}"><div class="q">${escapeHtml(q)}</div><div class="a">${valueHtml}</div></div>`;
+    })
     .join('');
 
   const attachments = Object.entries(sub.attachments || {})
-    .map(([label, att]) => `<li><button type="button" class="secondary" data-attachment-path="${att.path}" data-attachment-label="${label}">${label}</button></li>`)
+    .map(([label, att]) => `<li><button type="button" class="secondary" data-attachment-path="${escapeHtml(att.path)}" data-attachment-label="${escapeHtml(label)}">${escapeHtml(label)}</button></li>`)
     .join('');
 
   el('detailContent').innerHTML = `
-    <h2>${sub.typeName} — ${sub.companyName}</h2>
-    <p class="field-hint">Submitted ${formatDate(sub.createdAt)}</p>
+    <div class="doc-header">
+      <span class="type-badge" style="background:${typeColor}">${escapeHtml(sub.typeName)}</span>
+      <h2>${escapeHtml(sub.companyName)}</h2>
+      <p class="field-hint">Submitted ${formatDate(sub.createdAt)}</p>
+    </div>
     ${qa}
     <h2>Documents</h2>
     <ul class="attachment-list">${attachments || '<li class="field-hint">No documents attached</li>'}</ul>
