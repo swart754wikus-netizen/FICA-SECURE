@@ -52,7 +52,7 @@ body {
   border-radius: var(--radius);
   box-shadow: 0 4px 16px rgba(15, 23, 42, 0.06);
 }
-.brand-header img { height: 96px; width: auto; max-width: 260px; object-fit: contain; border-radius: 10px; }
+.brand-header img { height: 180px; width: auto; max-width: 400px; object-fit: contain; }
 .brand-header h1 { font-size: 28px; font-weight: 700; margin: 0; letter-spacing: -0.01em; }
 .brand-header p { margin: 0; color: var(--text-muted); font-size: 15px; }
 
@@ -62,15 +62,15 @@ body {
   align-items: center;
   text-align: center;
   gap: 14px;
-  padding: 28px 24px;
+  padding: 20px 24px;
   margin: 0 auto 20px;
-  max-width: 420px;
+  max-width: 460px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   box-shadow: 0 4px 16px rgba(15, 23, 42, 0.06);
 }
-.agency-hero img { height: 72px; width: auto; max-width: 260px; object-fit: contain; }
+.agency-hero img { height: 180px; width: auto; max-width: 400px; object-fit: contain; }
 .agency-hero .agency-hero-name { font-size: 22px; font-weight: 700; letter-spacing: -0.01em; color: var(--text); }
 .agency-hero .agency-hero-fallback {
   width: 72px; height: 72px; border-radius: 16px;
