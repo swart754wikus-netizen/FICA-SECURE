@@ -1,9 +1,9 @@
 import { auth, db, storage, signInWithCustomToken, signOut, apiPost } from './firebaseClient.js';
-import { collection, query, where, getDocs } from 'https://www.gstatic.com/firebasejs/12.0.0/firebase-firestore.js';
-import { ref, getBytes } from 'https://www.gstatic.com/firebasejs/12.0.0/firebase-storage.js';
+import { collection, query, where, getDocs, doc, deleteDoc } from 'https://www.gstatic.com/firebasejs/12.0.0/firebase-firestore.js';
+import { ref, getBytes, deleteObject } from 'https://www.gstatic.com/firebasejs/12.0.0/firebase-storage.js';
 import { FORM_TYPES } from './formDefinitions.js';
 
-const state = { companyId: null, name: '', slug: '', submissions: [] };
+const state = { companyId: null, name: '', slug: '', submissions: [], currentSubmissionId: null };
 const el = (id) => document.getElementById(id);
 
 const TYPE_COLORS = { natural: '#2563eb', trust: '#7c3aed', partnership: '#0d9488', enhanced: '#dc2626' };
@@ -146,6 +146,8 @@ function renderTable() {
 function renderDetail(id) {
   const sub = state.submissions.find((s) => s.id === id);
   if (!sub) return;
+  state.currentSubmissionId = id;
+  hideError('detailDeleteError');
 
   const typeColor = TYPE_COLORS[sub.type] || '#64748b';
 
@@ -248,6 +250,44 @@ function closeDocPreview() {
   }
 }
 
+async function deleteSubmission() {
+  const id = state.currentSubmissionId;
+  const sub = state.submissions.find((s) => s.id === id);
+  if (!sub) return;
+
+  const confirmed = confirm(
+    `Delete this ${sub.typeName} submission for ${sub.companyName}? This permanently removes the client's answers, signature, and uploaded documents. This cannot be undone — note FICA generally requires KYC records to be retained for 5 years, so only delete entries you're sure shouldn't be kept.`
+  );
+  if (!confirmed) return;
+
+  hideError('detailDeleteError');
+  el('detailDelete').disabled = true;
+  el('detailDelete').textContent = 'Deleting…';
+
+  try {
+    for (const att of Object.values(sub.attachments || {})) {
+      try {
+        await deleteObject(ref(storage, att.path));
+      } catch (err) {
+        // Don't let one missing/already-gone file block deleting the rest.
+        console.error('Could not delete attachment', att.path, err);
+      }
+    }
+    await deleteDoc(doc(db, 'FICA_SUBMISSIONS', id));
+
+    state.submissions = state.submissions.filter((s) => s.id !== id);
+    renderStats();
+    renderTable();
+    el('step-detail').hidden = true;
+    el('step-dashboard').hidden = false;
+  } catch (err) {
+    showError('detailDeleteError', err.message || 'Could not delete submission.');
+  } finally {
+    el('detailDelete').disabled = false;
+    el('detailDelete').textContent = 'Delete submission';
+  }
+}
+
 function wireEvents() {
   el('loginSubmit').addEventListener('click', async () => {
     hideError('loginError');
@@ -296,6 +336,7 @@ function wireEvents() {
     el('step-dashboard').hidden = false;
   });
   el('printBtn').addEventListener('click', () => window.print());
+  el('detailDelete').addEventListener('click', deleteSubmission);
   el('docPreviewClose').addEventListener('click', closeDocPreview);
   el('docPreviewOverlay').addEventListener('click', (e) => {
     if (e.target.id === 'docPreviewOverlay') closeDocPreview();

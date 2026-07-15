@@ -20,11 +20,10 @@ service firebase.storage {
                       request.auth.token.companyId == companyId &&
                       request.resource.size < 15 * 1024 * 1024 &&
                       request.resource.contentType.matches('image/.*|application/pdf');
-      allow read: if request.auth != null &&
+      allow read, delete: if request.auth != null &&
                     (request.auth.token.email == 'swart754wikus@gmail.com' ||
                      (request.auth.token.role == 'agent' &&
                       request.auth.token.companyId == companyId));
-      allow delete: if false;
     }
 
     match /{allPaths=**} {
