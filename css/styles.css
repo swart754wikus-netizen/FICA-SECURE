@@ -76,6 +76,48 @@ body.client-portal .trust-note svg { flex-shrink: 0; color: var(--navy); }
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 
+.auth-page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+  padding: 24px;
+  background: linear-gradient(160deg, var(--navy) 0%, var(--navy-dark) 100%);
+}
+.auth-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+}
+.auth-brand-mark {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+}
+.auth-brand-title { color: #fff; font-size: 20px; font-weight: 700; letter-spacing: -0.01em; }
+.auth-brand-subtitle { color: rgba(255, 255, 255, 0.55); font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; }
+
+.auth-card {
+  width: 100%;
+  max-width: 400px;
+  background: var(--surface);
+  border-radius: 16px;
+  padding: 36px 32px;
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.25);
+}
+.auth-card h2 { margin: 0 0 22px; font-size: 19px; }
+.auth-card button { width: 100%; margin-top: 4px; }
+
 .brand-header {
   display: flex;
   flex-direction: column;
@@ -144,6 +186,16 @@ select {
   color: var(--text);
 }
 textarea { min-height: 80px; resize: vertical; }
+input[type='text']:focus,
+input[type='email']:focus,
+input[type='password']:focus,
+input[type='number']:focus,
+textarea:focus,
+select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
 
 .radio-group, .checkbox-group { display: flex; gap: 16px; flex-wrap: wrap; }
 .radio-group label, .checkbox-group label { font-weight: 400; display: flex; align-items: center; gap: 6px; }
