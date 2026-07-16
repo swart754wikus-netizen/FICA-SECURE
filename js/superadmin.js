@@ -31,17 +31,19 @@ function todayISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
-// One calendar month out from a YYYY-MM-DD string, kept as a plain date
-// string (not a Firestore Timestamp) since these are only ever compared/
-// displayed as dates, never queried by time-of-day.
-function addMonthISO(dateStr) {
-  const d = new Date(dateStr + 'T00:00:00');
-  const day = d.getDate();
-  d.setDate(1);
-  d.setMonth(d.getMonth() + 1);
-  const daysInTargetMonth = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
-  d.setDate(Math.min(day, daysInTargetMonth));
-  return d.toISOString().slice(0, 10);
+// Every paying agency is debited on the same fixed calendar day each month
+// (a single debit-order batch), not a per-company rolling anniversary.
+// Change BILLING_DAY here if that day ever moves.
+const BILLING_DAY = 25;
+
+function nextBillingDate(fromDateStr) {
+  const d = new Date(fromDateStr + 'T00:00:00');
+  let year = d.getFullYear();
+  let month = d.getMonth();
+  if (d.getDate() >= BILLING_DAY) month += 1; // already past this month's billing day
+  const daysInTargetMonth = new Date(year, month + 1, 0).getDate();
+  const day = Math.min(BILLING_DAY, daysInTargetMonth);
+  return new Date(year, month, day).toISOString().slice(0, 10);
 }
 
 function dueInfo(nextDueAt) {
@@ -54,16 +56,33 @@ function dueInfo(nextDueAt) {
   return { label: nextDueAt, className: 'badge--active' };
 }
 
+// Only meaningful while status is still "trial" — once an agency converts
+// to active/suspended, trialEndsAt is just historical and not shown.
+function trialInfo(company) {
+  if (company.status !== 'trial' || !company.trialEndsAt) return { label: '—', className: '' };
+  const today = todayISO();
+  if (company.trialEndsAt < today) return { label: `Expired ${company.trialEndsAt}`, className: 'badge--suspended' };
+  const soon = new Date(today + 'T00:00:00');
+  soon.setDate(soon.getDate() + 3);
+  if (company.trialEndsAt <= soon.toISOString().slice(0, 10)) return { label: `Ends ${company.trialEndsAt}`, className: 'badge--trial' };
+  return { label: `Ends ${company.trialEndsAt}`, className: '' };
+}
+
 function renderStats() {
   const active = state.companies.filter((c) => c.status === 'active').length;
   const paid = state.companies.filter((c) => c.payment === 'paid').length;
   const today = todayISO();
+  const soon = new Date(today + 'T00:00:00');
+  soon.setDate(soon.getDate() + 3);
+  const soonStr = soon.toISOString().slice(0, 10);
   const overdue = state.companies.filter((c) => c.nextDueAt && c.nextDueAt < today).length;
+  const trialsEnding = state.companies.filter((c) => c.status === 'trial' && c.trialEndsAt && c.trialEndsAt <= soonStr).length;
   const cards = [
     { label: 'Companies', value: state.companies.length },
     { label: 'Active', value: active },
     { label: 'Paid', value: paid },
     { label: 'Overdue', value: overdue },
+    { label: 'Trials ending', value: trialsEnding },
   ];
   el('statGrid').innerHTML = cards.map((c) => `<div class="stat-card"><div class="value">${c.value}</div><div class="label">${c.label}</div></div>`).join('');
 }
@@ -73,14 +92,16 @@ function renderTable() {
   const rows = state.companies.filter((c) => !search || `${c.name} ${c.slug}`.toLowerCase().includes(search));
 
   el('companiesBody').innerHTML = rows
-    .map(
-      (c) => `<tr data-id="${c.id}">
+    .map((c) => {
+      const trial = trialInfo(c);
+      return `<tr data-id="${c.id}">
         <td>${c.name}</td>
         <td>${c.slug}</td>
         <td><span class="badge badge--${c.status}">${c.status}</span></td>
+        <td>${trial.className ? `<span class="badge ${trial.className}">${trial.label}</span>` : trial.label}</td>
         <td><button type="button" class="secondary" data-edit="${c.id}">Edit</button></td>
-      </tr>`
-    )
+      </tr>`;
+    })
     .join('');
 
   el('companiesBody').querySelectorAll('[data-edit]').forEach((btn) => {
@@ -129,7 +150,7 @@ async function markPaidQuick(btn) {
       companyId: id,
       payment: 'paid',
       lastPaidAt: today,
-      nextDueAt: addMonthISO(today),
+      nextDueAt: nextBillingDate(today),
     });
     await loadCompanies();
   } catch (err) {
@@ -149,6 +170,7 @@ function openEdit(id) {
   el('editTagline').value = company.tagline || '';
   el('editStatus').value = company.status || 'trial';
   el('editPayment').value = company.payment || 'unpaid';
+  el('editTrialEndsAt').value = company.trialEndsAt || '';
   el('editLastPaidAt').value = company.lastPaidAt || '';
   el('editNextDueAt').value = company.nextDueAt || '';
   el('editAccessCode').value = '';
@@ -184,6 +206,7 @@ async function saveEdit() {
       tagline: el('editTagline').value.trim(),
       status: el('editStatus').value,
       payment: el('editPayment').value,
+      trialEndsAt: el('editTrialEndsAt').value || null,
       lastPaidAt: el('editLastPaidAt').value || null,
       nextDueAt: el('editNextDueAt').value || null,
       ...(logoUrl ? { logoUrl } : {}),
@@ -288,7 +311,7 @@ function wireEvents() {
   el('markPaidToday').addEventListener('click', () => {
     const today = todayISO();
     el('editLastPaidAt').value = today;
-    el('editNextDueAt').value = addMonthISO(today);
+    el('editNextDueAt').value = nextBillingDate(today);
     el('editPayment').value = 'paid';
   });
 }

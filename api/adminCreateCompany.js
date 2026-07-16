@@ -27,6 +27,11 @@ module.exports = async (req, res) => {
     bcrypt.hash(agentPassword, 10),
   ]);
 
+  // 14-day trial clock starts the moment the agency is created, regardless
+  // of which initial status is chosen — informational either way, and means
+  // nobody has to remember to set it by hand.
+  const trialEndsAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
   // slug doubles as the doc ID so .create() atomically enforces uniqueness —
   // no separate query-then-write race window.
   try {
@@ -40,6 +45,7 @@ module.exports = async (req, res) => {
       agentPasswordHash,
       status: status || 'trial',
       payment: payment || 'unpaid',
+      trialEndsAt,
       lastPaidAt: null,
       nextDueAt: null,
       requiredDocuments: requiredDocuments || null,

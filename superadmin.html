@@ -64,7 +64,7 @@
       <div class="card">
         <input type="text" id="searchInput" placeholder="Search companies…" style="margin-bottom:16px;">
         <table>
-          <thead><tr><th>Name</th><th>Slug</th><th>Status</th><th></th></tr></thead>
+          <thead><tr><th>Name</th><th>Slug</th><th>Status</th><th>Trial</th><th></th></tr></thead>
           <tbody id="companiesBody"></tbody>
         </table>
       </div>
@@ -95,13 +95,14 @@
       <label for="editStatus">Status</label>
       <select id="editStatus"><option value="trial">Trial</option><option value="active">Active</option><option value="suspended">Suspended</option></select>
     </div>
+    <div class="field"><label for="editTrialEndsAt">Trial ends</label><input type="date" id="editTrialEndsAt"></div>
     <div class="field">
       <label for="editPayment">Payment</label>
       <select id="editPayment"><option value="unpaid">Unpaid</option><option value="paid">Paid</option></select>
     </div>
     <div class="field"><label for="editLastPaidAt">Last paid</label><input type="date" id="editLastPaidAt"></div>
     <div class="field"><label for="editNextDueAt">Next due</label><input type="date" id="editNextDueAt"></div>
-    <button type="button" class="secondary" id="markPaidToday" style="margin-bottom:22px;">Mark paid today (sets next due +1 month)</button>
+    <button type="button" class="secondary" id="markPaidToday" style="margin-bottom:22px;">Mark paid today (next due: 25th of the month)</button>
     <div class="field"><label for="editAccessCode">New client access code</label><input type="text" id="editAccessCode" placeholder="Leave blank to keep current"></div>
     <div class="field"><label for="editAgentPassword">New agent password</label><input type="text" id="editAgentPassword" placeholder="Leave blank to keep current"></div>
     <div style="display:flex; gap:10px;">

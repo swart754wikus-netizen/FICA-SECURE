@@ -20,7 +20,7 @@ module.exports = async (req, res) => {
 
   // Only these fields may be edited from the admin panel; anything else in the
   // request body (e.g. accessCodeHash) is ignored rather than trusted verbatim.
-  const allowed = ['name', 'tagline', 'logoUrl', 'status', 'payment', 'requiredDocuments', 'lastPaidAt', 'nextDueAt'];
+  const allowed = ['name', 'tagline', 'logoUrl', 'status', 'payment', 'requiredDocuments', 'lastPaidAt', 'nextDueAt', 'trialEndsAt'];
   const update = {};
   for (const key of allowed) {
     if (key in fields) update[key] = fields[key];
