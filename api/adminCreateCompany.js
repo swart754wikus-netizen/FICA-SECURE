@@ -40,6 +40,8 @@ module.exports = async (req, res) => {
       agentPasswordHash,
       status: status || 'trial',
       payment: payment || 'unpaid',
+      lastPaidAt: null,
+      nextDueAt: null,
       requiredDocuments: requiredDocuments || null,
       createdAt: new Date(),
     });

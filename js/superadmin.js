@@ -26,13 +26,43 @@ async function loadCompanies() {
   renderTable();
 }
 
+function todayISO() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+// One calendar month out from a YYYY-MM-DD string, kept as a plain date
+// string (not a Firestore Timestamp) since these are only ever compared/
+// displayed as dates, never queried by time-of-day.
+function addMonthISO(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00');
+  const day = d.getDate();
+  d.setDate(1);
+  d.setMonth(d.getMonth() + 1);
+  const daysInTargetMonth = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+  d.setDate(Math.min(day, daysInTargetMonth));
+  return d.toISOString().slice(0, 10);
+}
+
+function dueInfo(nextDueAt) {
+  if (!nextDueAt) return { label: '—', className: '' };
+  const today = todayISO();
+  if (nextDueAt < today) return { label: nextDueAt, className: 'badge--suspended' };
+  const soon = new Date(today + 'T00:00:00');
+  soon.setDate(soon.getDate() + 7);
+  if (nextDueAt <= soon.toISOString().slice(0, 10)) return { label: nextDueAt, className: 'badge--trial' };
+  return { label: nextDueAt, className: 'badge--active' };
+}
+
 function renderStats() {
   const active = state.companies.filter((c) => c.status === 'active').length;
   const paid = state.companies.filter((c) => c.payment === 'paid').length;
+  const today = todayISO();
+  const overdue = state.companies.filter((c) => c.nextDueAt && c.nextDueAt < today).length;
   const cards = [
     { label: 'Companies', value: state.companies.length },
     { label: 'Active', value: active },
     { label: 'Paid', value: paid },
+    { label: 'Overdue', value: overdue },
   ];
   el('statGrid').innerHTML = cards.map((c) => `<div class="stat-card"><div class="value">${c.value}</div><div class="label">${c.label}</div></div>`).join('');
 }
@@ -42,15 +72,17 @@ function renderTable() {
   const rows = state.companies.filter((c) => !search || `${c.name} ${c.slug}`.toLowerCase().includes(search));
 
   el('companiesBody').innerHTML = rows
-    .map(
-      (c) => `<tr data-id="${c.id}">
+    .map((c) => {
+      const due = dueInfo(c.nextDueAt);
+      return `<tr data-id="${c.id}">
         <td>${c.name}</td>
         <td>${c.slug}</td>
         <td><span class="badge badge--${c.status}">${c.status}</span></td>
         <td><span class="badge badge--${c.payment}">${c.payment}</span></td>
+        <td>${due.className ? `<span class="badge ${due.className}">${due.label}</span>` : due.label}</td>
         <td><button type="button" class="secondary" data-edit="${c.id}">Edit</button></td>
-      </tr>`
-    )
+      </tr>`;
+    })
     .join('');
 
   el('companiesBody').querySelectorAll('[data-edit]').forEach((btn) => {
@@ -69,6 +101,8 @@ function openEdit(id) {
   el('editTagline').value = company.tagline || '';
   el('editStatus').value = company.status || 'trial';
   el('editPayment').value = company.payment || 'unpaid';
+  el('editLastPaidAt').value = company.lastPaidAt || '';
+  el('editNextDueAt').value = company.nextDueAt || '';
   el('editAccessCode').value = '';
   el('editAgentPassword').value = '';
   el('editLogo').value = '';
@@ -102,6 +136,8 @@ async function saveEdit() {
       tagline: el('editTagline').value.trim(),
       status: el('editStatus').value,
       payment: el('editPayment').value,
+      lastPaidAt: el('editLastPaidAt').value || null,
+      nextDueAt: el('editNextDueAt').value || null,
       ...(logoUrl ? { logoUrl } : {}),
       ...(el('editAccessCode').value ? { accessCode: el('editAccessCode').value } : {}),
       ...(el('editAgentPassword').value ? { agentPassword: el('editAgentPassword').value } : {}),
@@ -191,6 +227,12 @@ function wireEvents() {
   });
   el('editSave').addEventListener('click', saveEdit);
   el('editDelete').addEventListener('click', deleteCompany);
+  el('markPaidToday').addEventListener('click', () => {
+    const today = todayISO();
+    el('editLastPaidAt').value = today;
+    el('editNextDueAt').value = addMonthISO(today);
+    el('editPayment').value = 'paid';
+  });
 }
 
 wireEvents();
