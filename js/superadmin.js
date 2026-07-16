@@ -46,14 +46,29 @@ function nextBillingDate(fromDateStr) {
   return new Date(year, month, day).toISOString().slice(0, 10);
 }
 
+// Days you give an agency after the billing day before you cancel them.
+const GRACE_DAYS = 3;
+
+function daysBetween(fromISO, toISO) {
+  const ms = new Date(toISO + 'T00:00:00') - new Date(fromISO + 'T00:00:00');
+  return Math.round(ms / (24 * 60 * 60 * 1000));
+}
+
 function dueInfo(nextDueAt) {
-  if (!nextDueAt) return { label: '—', className: '' };
+  if (!nextDueAt) return { label: '—', className: '', stage: 'none' };
   const today = todayISO();
-  if (nextDueAt < today) return { label: nextDueAt, className: 'badge--suspended' };
-  const soon = new Date(today + 'T00:00:00');
-  soon.setDate(soon.getDate() + 7);
-  if (nextDueAt <= soon.toISOString().slice(0, 10)) return { label: nextDueAt, className: 'badge--trial' };
-  return { label: nextDueAt, className: 'badge--active' };
+
+  if (nextDueAt >= today) {
+    const daysAway = daysBetween(today, nextDueAt);
+    if (daysAway <= 7) return { label: nextDueAt, className: 'badge--trial', stage: 'soon' };
+    return { label: nextDueAt, className: 'badge--active', stage: 'upcoming' };
+  }
+
+  const daysLate = daysBetween(nextDueAt, today);
+  if (daysLate <= GRACE_DAYS) {
+    return { label: `${nextDueAt} (${daysLate}d late)`, className: 'badge--trial', stage: 'grace' };
+  }
+  return { label: `${nextDueAt} (${daysLate}d late)`, className: 'badge--suspended', stage: 'cancel' };
 }
 
 // Only meaningful while status is still "trial" — once an agency converts
@@ -75,13 +90,16 @@ function renderStats() {
   const soon = new Date(today + 'T00:00:00');
   soon.setDate(soon.getDate() + 3);
   const soonStr = soon.toISOString().slice(0, 10);
-  const overdue = state.companies.filter((c) => c.nextDueAt && c.nextDueAt < today).length;
+  const dueStages = state.companies.map((c) => dueInfo(c.nextDueAt).stage);
+  const inGrace = dueStages.filter((s) => s === 'grace').length;
+  const readyToCancel = dueStages.filter((s) => s === 'cancel').length;
   const trialsEnding = state.companies.filter((c) => c.status === 'trial' && c.trialEndsAt && c.trialEndsAt <= soonStr).length;
   const cards = [
     { label: 'Companies', value: state.companies.length },
     { label: 'Active', value: active },
     { label: 'Paid', value: paid },
-    { label: 'Overdue', value: overdue },
+    { label: 'In grace period', value: inGrace },
+    { label: 'Ready to cancel', value: readyToCancel },
     { label: 'Trials ending', value: trialsEnding },
   ];
   el('statGrid').innerHTML = cards.map((c) => `<div class="stat-card"><div class="value">${c.value}</div><div class="label">${c.label}</div></div>`).join('');
@@ -121,12 +139,19 @@ function renderAccountsTable() {
   el('accountsBody').innerHTML = rows
     .map((c) => {
       const due = dueInfo(c.nextDueAt);
+      const suspendBtn =
+        c.status === 'suspended'
+          ? ''
+          : `<button type="button" class="danger" data-suspend="${c.id}" data-name="${escapeHtml(c.name)}">Suspend</button>`;
       return `<tr data-id="${c.id}">
         <td>${c.name}</td>
         <td><span class="badge badge--${c.payment}">${c.payment}</span></td>
         <td>${c.lastPaidAt || '—'}</td>
         <td>${due.className ? `<span class="badge ${due.className}">${due.label}</span>` : due.label}</td>
-        <td><button type="button" class="secondary" data-mark-paid="${c.id}">Mark paid today</button></td>
+        <td style="display:flex; gap:8px;">
+          <button type="button" class="secondary" data-mark-paid="${c.id}">Mark paid today</button>
+          ${suspendBtn}
+        </td>
       </tr>`;
     })
     .join('');
@@ -134,6 +159,30 @@ function renderAccountsTable() {
   el('accountsBody').querySelectorAll('[data-mark-paid]').forEach((btn) => {
     btn.addEventListener('click', () => markPaidQuick(btn));
   });
+  el('accountsBody').querySelectorAll('[data-suspend]').forEach((btn) => {
+    btn.addEventListener('click', () => suspendQuick(btn));
+  });
+}
+
+function escapeHtml(str) {
+  return String(str ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+// Direct one-click cancel for a non-paying agency past the grace period —
+// same reasoning as markPaidQuick: shouldn't need the full edit screen for
+// a routine billing decision.
+async function suspendQuick(btn) {
+  const id = btn.dataset.suspend;
+  if (!confirm(`Suspend ${btn.dataset.name}? Their agent and clients will be locked out immediately.`)) return;
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+  try {
+    await authedFetch('adminUpdateCompany', { companyId: id, status: 'suspended' });
+    await loadCompanies();
+  } catch (err) {
+    btn.textContent = 'Failed — retry';
+    btn.disabled = false;
+  }
 }
 
 // Direct one-click "paid" for a single row in the Accounts tab — no need to
