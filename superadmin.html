@@ -41,30 +41,43 @@
   <section id="step-dashboard" hidden>
     <div class="stat-grid" id="statGrid"></div>
 
-    <div class="card">
-      <h2>Create company</h2>
-      <div class="field"><label for="newName">Agency name</label><input type="text" id="newName"></div>
-      <div class="field"><label for="newSlug">Slug (used in client link, e.g. acme-realty)</label><input type="text" id="newSlug" pattern="[a-z0-9-]+" title="Lowercase letters, numbers, and hyphens only"></div>
-      <div class="field"><label for="newAccessCode">Client access code</label><input type="text" id="newAccessCode"></div>
-      <div class="field"><label for="newAgentPassword">Agent password</label><input type="text" id="newAgentPassword"></div>
-      <div class="field">
-        <label for="newStatus">Status</label>
-        <select id="newStatus"><option value="trial">Trial</option><option value="active">Active</option><option value="suspended">Suspended</option></select>
-      </div>
-      <div class="field">
-        <label for="newPayment">Payment</label>
-        <select id="newPayment"><option value="unpaid">Unpaid</option><option value="paid">Paid</option></select>
-      </div>
-      <button id="createSubmit">Create company</button>
-      <div class="error" id="createError" hidden></div>
+    <div class="tab-bar no-print">
+      <button type="button" class="tab-btn active" data-tab="companies">Companies</button>
+      <button type="button" class="tab-btn" data-tab="accounts">Accounts</button>
     </div>
 
-    <div class="card">
-      <input type="text" id="searchInput" placeholder="Search companies…" style="margin-bottom:16px;">
-      <table>
-        <thead><tr><th>Name</th><th>Slug</th><th>Status</th><th>Payment</th><th>Due</th><th></th></tr></thead>
-        <tbody id="companiesBody"></tbody>
-      </table>
+    <div id="tab-companies">
+      <div class="card">
+        <h2>Create company</h2>
+        <div class="field"><label for="newName">Agency name</label><input type="text" id="newName"></div>
+        <div class="field"><label for="newSlug">Slug (used in client link, e.g. acme-realty)</label><input type="text" id="newSlug" pattern="[a-z0-9-]+" title="Lowercase letters, numbers, and hyphens only"></div>
+        <div class="field"><label for="newAccessCode">Client access code</label><input type="text" id="newAccessCode"></div>
+        <div class="field"><label for="newAgentPassword">Agent password</label><input type="text" id="newAgentPassword"></div>
+        <div class="field">
+          <label for="newStatus">Status</label>
+          <select id="newStatus"><option value="trial">Trial</option><option value="active">Active</option><option value="suspended">Suspended</option></select>
+        </div>
+        <button id="createSubmit">Create company</button>
+        <div class="error" id="createError" hidden></div>
+      </div>
+
+      <div class="card">
+        <input type="text" id="searchInput" placeholder="Search companies…" style="margin-bottom:16px;">
+        <table>
+          <thead><tr><th>Name</th><th>Slug</th><th>Status</th><th></th></tr></thead>
+          <tbody id="companiesBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="tab-accounts" hidden>
+      <div class="card">
+        <input type="text" id="accountsSearchInput" placeholder="Search accounts…" style="margin-bottom:16px;">
+        <table>
+          <thead><tr><th>Name</th><th>Payment</th><th>Last paid</th><th>Next due</th><th></th></tr></thead>
+          <tbody id="accountsBody"></tbody>
+        </table>
+      </div>
     </div>
   </section>
 

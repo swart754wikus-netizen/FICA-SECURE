@@ -264,6 +264,20 @@ tr:hover td { background: #f8fafc; cursor: pointer; }
 .stat-card .value { font-size: 26px; font-weight: 700; color: var(--stat-color, var(--text)); }
 .stat-card .label { font-size: 13px; color: var(--text-muted); }
 
+.tab-bar { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 1px solid var(--border); }
+.tab-btn {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  padding: 10px 4px;
+  margin-right: 20px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.tab-btn:hover { background: none; color: var(--text); }
+.tab-btn.active { color: var(--navy); border-bottom-color: var(--navy); }
+
 .topbar { display: flex; justify-content: space-between; align-items: center; padding: 14px 24px; background: var(--navy); color: #fff; }
 .topbar a, .topbar button.secondary { color: #fff; border-color: rgba(255,255,255,0.4); background: transparent; }
 

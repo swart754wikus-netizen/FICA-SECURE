@@ -24,6 +24,7 @@ async function loadCompanies() {
   state.companies = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
   renderStats();
   renderTable();
+  renderAccountsTable();
 }
 
 function todayISO() {
@@ -72,22 +73,69 @@ function renderTable() {
   const rows = state.companies.filter((c) => !search || `${c.name} ${c.slug}`.toLowerCase().includes(search));
 
   el('companiesBody').innerHTML = rows
-    .map((c) => {
-      const due = dueInfo(c.nextDueAt);
-      return `<tr data-id="${c.id}">
+    .map(
+      (c) => `<tr data-id="${c.id}">
         <td>${c.name}</td>
         <td>${c.slug}</td>
         <td><span class="badge badge--${c.status}">${c.status}</span></td>
-        <td><span class="badge badge--${c.payment}">${c.payment}</span></td>
-        <td>${due.className ? `<span class="badge ${due.className}">${due.label}</span>` : due.label}</td>
         <td><button type="button" class="secondary" data-edit="${c.id}">Edit</button></td>
-      </tr>`;
-    })
+      </tr>`
+    )
     .join('');
 
   el('companiesBody').querySelectorAll('[data-edit]').forEach((btn) => {
     btn.addEventListener('click', () => openEdit(btn.dataset.edit));
   });
+}
+
+function renderAccountsTable() {
+  const search = el('accountsSearchInput').value.trim().toLowerCase();
+  const rows = state.companies
+    .filter((c) => !search || c.name.toLowerCase().includes(search))
+    // Overdue first, then soonest-due, so the list itself prioritizes what needs attention —
+    // important once there are enough companies that scanning the whole list isn't practical.
+    .slice()
+    .sort((a, b) => (a.nextDueAt || '9999') < (b.nextDueAt || '9999') ? -1 : 1);
+
+  el('accountsBody').innerHTML = rows
+    .map((c) => {
+      const due = dueInfo(c.nextDueAt);
+      return `<tr data-id="${c.id}">
+        <td>${c.name}</td>
+        <td><span class="badge badge--${c.payment}">${c.payment}</span></td>
+        <td>${c.lastPaidAt || '—'}</td>
+        <td>${due.className ? `<span class="badge ${due.className}">${due.label}</span>` : due.label}</td>
+        <td><button type="button" class="secondary" data-mark-paid="${c.id}">Mark paid today</button></td>
+      </tr>`;
+    })
+    .join('');
+
+  el('accountsBody').querySelectorAll('[data-mark-paid]').forEach((btn) => {
+    btn.addEventListener('click', () => markPaidQuick(btn));
+  });
+}
+
+// Direct one-click "paid" for a single row in the Accounts tab — no need to
+// open the full edit screen just to record a monthly payment, which matters
+// once there are enough companies that going one-by-one through Edit isn't
+// practical.
+async function markPaidQuick(btn) {
+  const id = btn.dataset.markPaid;
+  const today = todayISO();
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+  try {
+    await authedFetch('adminUpdateCompany', {
+      companyId: id,
+      payment: 'paid',
+      lastPaidAt: today,
+      nextDueAt: addMonthISO(today),
+    });
+    await loadCompanies();
+  } catch (err) {
+    btn.textContent = 'Failed — retry';
+    btn.disabled = false;
+  }
 }
 
 function openEdit(id) {
@@ -206,7 +254,6 @@ function wireEvents() {
         accessCode,
         agentPassword,
         status: el('newStatus').value,
-        payment: el('newPayment').value,
       });
       el('newName').value = '';
       el('newSlug').value = '';
@@ -221,6 +268,17 @@ function wireEvents() {
   });
 
   el('searchInput').addEventListener('input', renderTable);
+  el('accountsSearchInput').addEventListener('input', renderAccountsTable);
+
+  document.querySelectorAll('.tab-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      el('tab-companies').hidden = btn.dataset.tab !== 'companies';
+      el('tab-accounts').hidden = btn.dataset.tab !== 'accounts';
+    });
+  });
+
   el('editBack').addEventListener('click', () => {
     el('step-edit').hidden = true;
     el('step-dashboard').hidden = false;
