@@ -25,17 +25,51 @@ service cloud.firestore {
       allow write: if isSuperAdmin();
     }
 
+    // FICA s22–s23 retention: records must be kept for at least 5 years.
+    function retentionExpired() {
+      return request.time > resource.data.createdAt + duration.value(1827, 'd');
+    }
+
     match /FICA_SUBMISSIONS/{subId} {
-      allow read, delete: if isSuperAdmin() || isAgentFor(resource.data.companyId);
-      allow create: if isClientFor(request.resource.data.companyId);
-      // Agent/super admin may update freely. A client may update ONLY their
-      // own just-created submission, and only to attach uploaded document
-      // metadata (see api upload flow) — never to alter answers or signature
-      // after the fact. Multiple `allow update` blocks are OR'd by Firestore,
-      // so either condition independently grants the update.
-      allow update: if isSuperAdmin() || isAgentFor(resource.data.companyId);
-      allow update: if isClientFor(resource.data.companyId) &&
-                      request.resource.data.diff(resource.data).affectedKeys().hasOnly(['attachments']);
+      allow read: if isSuperAdmin() || isAgentFor(resource.data.companyId);
+
+      // Nobody may delete a FICA record inside the retention period — not agents,
+      // not the super admin. After 5 years only the super admin may purge it.
+      allow delete: if isSuperAdmin() && retentionExpired();
+
+      // Clients create a submission with a server timestamp and only the expected
+      // fields. They can't choose the internal EDD assessment form.
+      allow create: if isClientFor(request.resource.data.companyId)
+                    && request.resource.data.createdAt == request.time
+                    && request.resource.data.type in ['natural', 'trust', 'partnership']
+                    && request.resource.data.keys().hasOnly(['companyId', 'companyName', 'type', 'typeName', 'answers', 'signature', 'createdAt']);
+
+      // Client: attach uploaded-document metadata ONCE, within an hour of creating
+      // the submission — never alter answers, signature or documents afterwards.
+      allow update: if isClientFor(resource.data.companyId)
+                    && !('attachments' in resource.data)
+                    && request.time < resource.data.createdAt + duration.value(1, 'h')
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['attachments']);
+
+      // Agent: may only ADD the internal EDD risk assessment, once, server-timestamped.
+      // Client answers, signature and documents are evidence and stay immutable —
+      // there is deliberately no general update path, even for the super admin.
+      allow update: if isAgentFor(resource.data.companyId)
+                    && !('eddAssessment' in resource.data)
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['eddAssessment'])
+                    && request.resource.data.eddAssessment.keys().hasOnly(['answers', 'completedAt', 'completedBy'])
+                    && request.resource.data.eddAssessment.completedAt == request.time
+                    && request.resource.data.eddAssessment.completedBy == request.auth.uid;
+    }
+
+    // Append-only access log: who opened which record/document, and EDD sign-offs.
+    match /AUDIT_LOG/{entryId} {
+      allow create: if (isAgentFor(request.resource.data.companyId) || isSuperAdmin())
+                    && request.resource.data.ts == request.time
+                    && request.resource.data.actor == request.auth.uid
+                    && request.resource.data.keys().hasOnly(['companyId', 'actor', 'action', 'submissionId', 'detail', 'ts']);
+      allow read: if isSuperAdmin() || isAgentFor(resource.data.companyId);
+      allow update, delete: if false;
     }
 
     // Login-attempt counters are only ever read/written by the Admin SDK

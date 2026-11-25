@@ -11,19 +11,26 @@ service firebase.storage {
     }
 
     match /submissions/{companyId}/{submissionId}/{fileName} {
-      // create AND update (not just create) so a client can re-pick a file for
-      // the same document label before finishing their submission, without
-      // opening up arbitrary rewrites after the fact — the custom token still
-      // scopes this to that client's own companyId.
-      allow create, update: if request.auth != null &&
-                      request.auth.token.role == 'client' &&
-                      request.auth.token.companyId == companyId &&
-                      request.resource.size < 15 * 1024 * 1024 &&
-                      request.resource.contentType.matches('image/.*|application/pdf');
-      allow read, delete: if request.auth != null &&
+      function isClientUploadFor(cid) {
+        return request.auth != null &&
+               request.auth.token.role == 'client' &&
+               request.auth.token.companyId == cid &&
+               request.resource.size < 15 * 1024 * 1024 &&
+               request.resource.contentType.matches('image/(jpeg|png|heic|heif|webp)|application/pdf');
+      }
+      allow create: if isClientUploadFor(companyId);
+      // Re-upload (e.g. retrying a failed submit) only within the first hour —
+      // after that the document is FICA evidence and is immutable.
+      allow update: if isClientUploadFor(companyId) &&
+                      request.time < resource.timeCreated + duration.value(1, 'h');
+      allow read: if request.auth != null &&
                     (request.auth.token.email == 'swart754wikus@gmail.com' ||
                      (request.auth.token.role == 'agent' &&
                       request.auth.token.companyId == companyId));
+      // FICA s22–s23: no deletion within 5 years; afterwards super admin only.
+      allow delete: if request.auth != null &&
+                      request.auth.token.email == 'swart754wikus@gmail.com' &&
+                      request.time > resource.timeCreated + duration.value(1827, 'd');
     }
 
     match /{allPaths=**} {

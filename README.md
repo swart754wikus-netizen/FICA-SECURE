@@ -66,6 +66,15 @@ Re-run this whenever you add a custom domain. Without it, document download butt
 
 Log into `/superadmin` with your existing Firebase Auth account. Existing companies should show up (their submissions are untouched). If you ran `rotate`, distribute each agency's new access code/agent password from the script's output, and update the client links you've sent out if slugs changed (they didn't — only credentials did).
 
+## FICA record-keeping & EDD (retention branch)
+
+- **Retention (FICA s22–s23):** submissions and their documents cannot be deleted by anyone for 5 years after `createdAt` (enforced in `firestore.rules` / `storage.rules`). After that only the super admin can purge them. The agent portal no longer has a delete button.
+- **Immutable evidence:** client answers, signature and documents can't be edited by agents or the super admin. Clients can attach document metadata once, within an hour of submitting.
+- **EDD is risk-based, not self-selected:** the "Enhanced Due Diligence" form is the agency's internal risk assessment, so clients can no longer choose it. `eddTriggers()` in `js/formDefinitions.js` flags EDD from the client's answers (PEP/DPIP/family, non-resident, foreign operations, cash ≥ R50k, cash/international payment, lottery source, outstanding Form 1). Agents complete the assessment in the agent portal; it is saved once, server-timestamped and locked.
+- **Access log:** `AUDIT_LOG` (append-only) records submission views, document views and EDD sign-offs. Until agents have individual logins (next step), the actor is the shared agency login.
+
+To deploy: publish both rules files (step 3 above), then deploy the frontend. Rules tests: `cd tests/rules && npm install && npm test` (needs Java 11+).
+
 ## Verification checklist
 
 - `GET` `https://firestore.googleapis.com/v1/projects/<project>/databases/(default)/documents/COMPANIES?key=<apiKey>` unauthenticated — must return a permission error, not data.

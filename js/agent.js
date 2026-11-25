@@ -1,7 +1,12 @@
 import { auth, db, storage, signInWithCustomToken, signOut, apiPost } from './firebaseClient.js';
-import { collection, query, where, getDocs, doc, deleteDoc } from 'https://www.gstatic.com/firebasejs/12.0.0/firebase-firestore.js';
-import { ref, getBytes, deleteObject } from 'https://www.gstatic.com/firebasejs/12.0.0/firebase-storage.js';
-import { FORM_TYPES } from './formDefinitions.js';
+import { collection, query, where, getDocs, doc, addDoc, updateDoc, serverTimestamp, Timestamp } from 'https://www.gstatic.com/firebasejs/12.0.0/firebase-firestore.js';
+import { ref, getBytes } from 'https://www.gstatic.com/firebasejs/12.0.0/firebase-storage.js';
+import { FORM_TYPES, eddTriggers } from './formDefinitions.js';
+import { renderForm, validateForm, collectAnswers } from './formRenderer.js';
+
+// FICA s22–s23: records must be kept for at least 5 years. Deletion is blocked in
+// firestore.rules / storage.rules until then; this constant only drives the UI notice.
+const RETENTION_YEARS = 5;
 
 const state = { companyId: null, name: '', slug: '', submissions: [], currentSubmissionId: null };
 const el = (id) => document.getElementById(id);
@@ -48,6 +53,24 @@ function orderedAnswerEntries(sub) {
   });
 
   return ordered;
+}
+
+/** Best-effort access log (who opened which client record/document). Enforced append-only by rules. */
+function logAccess(action, submissionId, detail = null) {
+  addDoc(collection(db, 'AUDIT_LOG'), {
+    companyId: state.companyId,
+    actor: auth.currentUser?.uid || 'unknown',
+    action,
+    submissionId: submissionId || null,
+    detail,
+    ts: serverTimestamp(),
+  }).catch((err) => console.error('Audit log write failed', err));
+}
+
+function retainUntil(sub) {
+  const d = sub.createdAt?.toDate ? sub.createdAt.toDate() : new Date();
+  d.setFullYear(d.getFullYear() + RETENTION_YEARS);
+  return d;
 }
 
 function showError(id, message) {
@@ -102,14 +125,18 @@ async function loadSubmissions() {
 }
 
 function renderStats() {
-  const counts = { natural: 0, trust: 0, partnership: 0, enhanced: 0 };
-  state.submissions.forEach((s) => { if (counts[s.type] != null) counts[s.type]++; });
+  const counts = { natural: 0, trust: 0, partnership: 0 };
+  let eddOutstanding = 0;
+  state.submissions.forEach((s) => {
+    if (counts[s.type] != null) counts[s.type]++;
+    if (eddTriggers(s).length && !s.eddAssessment) eddOutstanding++;
+  });
   const cards = [
     { label: 'Total submissions', value: state.submissions.length, color: '#0f2c4c' },
     { label: 'Natural Person', value: counts.natural, color: TYPE_COLORS.natural },
     { label: 'Trust', value: counts.trust, color: TYPE_COLORS.trust },
     { label: 'Partnership', value: counts.partnership, color: TYPE_COLORS.partnership },
-    { label: 'Enhanced DD', value: counts.enhanced, color: TYPE_COLORS.enhanced },
+    { label: 'EDD outstanding', value: eddOutstanding, color: TYPE_COLORS.enhanced },
   ];
   el('statGrid').innerHTML = cards
     .map((c) => `<div class="stat-card" style="--stat-color:${c.color}"><div class="value">${c.value}</div><div class="label">${c.label}</div></div>`)
@@ -121,7 +148,8 @@ function renderTable() {
   const typeFilter = el('typeFilter').value;
 
   const rows = state.submissions.filter((s) => {
-    if (typeFilter && s.type !== typeFilter) return false;
+    if (typeFilter === '__edd') { if (!eddTriggers(s).length || s.eddAssessment) return false; }
+    else if (typeFilter && s.type !== typeFilter) return false;
     if (!search) return true;
     const haystack = `${s.typeName} ${JSON.stringify(s.answers || {})}`.toLowerCase();
     return haystack.includes(search);
@@ -133,7 +161,7 @@ function renderTable() {
       (s) => `<tr data-id="${s.id}">
         <td>${formatDate(s.createdAt)}</td>
         <td><span class="type-badge" style="background:${TYPE_COLORS[s.type] || '#64748b'}">${escapeHtml(s.typeName)}</span></td>
-        <td>${escapeHtml(summaryFor(s))}</td>
+        <td>${escapeHtml(summaryFor(s))}${eddTriggers(s).length ? ` <span class="risk-flag">${s.eddAssessment ? 'EDD done' : '⚠ EDD required'}</span>` : ''}</td>
       </tr>`
     )
     .join('');
@@ -147,7 +175,6 @@ function renderDetail(id) {
   const sub = state.submissions.find((s) => s.id === id);
   if (!sub) return;
   state.currentSubmissionId = id;
-  hideError('detailDeleteError');
 
   const typeColor = TYPE_COLORS[sub.type] || '#64748b';
 
@@ -168,18 +195,48 @@ function renderDetail(id) {
     )
     .join('');
 
+  const reasons = eddTriggers(sub);
+  const eddBanner = reasons.length
+    ? `<div class="edd-banner ${sub.eddAssessment ? 'edd-done' : ''}">
+        <strong>${sub.eddAssessment ? '✓ Enhanced due diligence completed' : '⚠ Enhanced due diligence required'}</strong>
+        <ul>${reasons.map((r) => `<li>${escapeHtml(r)}</li>`).join('')}</ul>
+      </div>`
+    : '';
+
+  const eddSection = sub.eddAssessment
+    ? `<h2>EDD risk assessment (internal)</h2>
+       <p class="field-hint">Completed ${formatDate(sub.eddAssessment.completedAt)}. Locked — cannot be changed.</p>
+       ${Object.entries(sub.eddAssessment.answers || {})
+         .map(([q, a], i) => `<div class="qa" style="border-left-color:${TYPE_COLORS.enhanced}"><div class="q">${i + 1}. ${escapeHtml(q)}</div><div class="a">${escapeHtml(a) || '—'}</div></div>`)
+         .join('')}`
+    : `<div class="no-print">
+         <h2>EDD risk assessment (internal)</h2>
+         <p class="field-hint">${reasons.length ? 'Required for this client before you proceed.' : 'Optional for this client.'} Once saved it is locked as part of the FICA record.</p>
+         <button type="button" class="${reasons.length ? '' : 'secondary'}" id="eddStart">Complete EDD risk assessment</button>
+         <form id="eddForm" hidden novalidate></form>
+         <div id="eddActions" hidden style="display:flex; gap:10px; margin-top:12px;">
+           <button type="button" class="secondary" id="eddCancel">Cancel</button>
+           <button type="button" id="eddSave">Save and lock assessment</button>
+         </div>
+         <div class="error" id="eddError" hidden></div>
+       </div>`;
+
   el('detailContent').innerHTML = `
     <div class="doc-header">
       <span class="type-badge" style="background:${typeColor}">${escapeHtml(sub.typeName)}</span>
       <h2>${escapeHtml(sub.companyName)}</h2>
-      <p class="field-hint">Submitted ${formatDate(sub.createdAt)}</p>
+      <p class="field-hint">Submitted ${formatDate(sub.createdAt)} · Retained until ${retainUntil(sub).toLocaleDateString()} (FICA)</p>
     </div>
+    ${eddBanner}
     ${qa}
     <h2>Documents</h2>
     <ul class="attachment-list">${attachments || '<li class="field-hint">No documents attached</li>'}</ul>
     <h2>Signature</h2>
     ${sub.signature ? `<img class="signature" src="${sub.signature}" alt="Client signature">` : '<p class="field-hint">No signature</p>'}
+    ${eddSection}
   `;
+  logAccess('submission.viewed', id);
+  wireEddForm(sub);
 
   el('step-dashboard').hidden = true;
   el('step-detail').hidden = false;
@@ -232,6 +289,7 @@ async function viewAttachment(btn) {
     }
 
     el('docPreviewOverlay').hidden = false;
+    logAccess('document.viewed', state.currentSubmissionId, { label });
     btn.textContent = originalText;
     btn.disabled = false;
   } catch (err) {
@@ -250,42 +308,50 @@ function closeDocPreview() {
   }
 }
 
-async function deleteSubmission() {
-  const id = state.currentSubmissionId;
-  const sub = state.submissions.find((s) => s.id === id);
-  if (!sub) return;
-
-  const confirmed = confirm(
-    `Delete this ${sub.typeName} submission for ${sub.companyName}? This permanently removes the client's answers, signature, and uploaded documents. This cannot be undone — note FICA generally requires KYC records to be retained for 5 years, so only delete entries you're sure shouldn't be kept.`
-  );
-  if (!confirmed) return;
-
-  hideError('detailDeleteError');
-  el('detailDelete').disabled = true;
-  el('detailDelete').textContent = 'Deleting…';
-
-  try {
-    for (const att of Object.values(sub.attachments || {})) {
-      try {
-        await deleteObject(ref(storage, att.path));
-      } catch (err) {
-        // Don't let one missing/already-gone file block deleting the rest.
-        console.error('Could not delete attachment', att.path, err);
-      }
+function wireEddForm(sub) {
+  const start = el('eddStart');
+  if (!start) return;
+  const form = el('eddForm');
+  start.addEventListener('click', () => {
+    renderForm(form, FORM_TYPES.enhanced);
+    // Prefill identity fields the client already gave (same field names across forms).
+    for (const f of FORM_TYPES[sub.type]?.fields || []) {
+      const input = form.querySelector(`input[name="${f.name}"], textarea[name="${f.name}"]`);
+      const value = sub.answers?.[f.label];
+      if (input && value) input.value = value;
     }
-    await deleteDoc(doc(db, 'FICA_SUBMISSIONS', id));
-
-    state.submissions = state.submissions.filter((s) => s.id !== id);
-    renderStats();
-    renderTable();
-    el('step-detail').hidden = true;
-    el('step-dashboard').hidden = false;
-  } catch (err) {
-    showError('detailDeleteError', err.message || 'Could not delete submission.');
-  } finally {
-    el('detailDelete').disabled = false;
-    el('detailDelete').textContent = 'Delete submission';
-  }
+    form.hidden = false;
+    el('eddActions').hidden = false;
+    start.hidden = true;
+  });
+  el('eddCancel').addEventListener('click', () => {
+    form.hidden = true;
+    form.innerHTML = '';
+    el('eddActions').hidden = true;
+    start.hidden = false;
+  });
+  el('eddSave').addEventListener('click', async () => {
+    hideError('eddError');
+    if (!validateForm(form)) return showError('eddError', 'Please complete all required fields.');
+    if (!confirm('Save this EDD risk assessment? It will be locked as part of the FICA record and cannot be edited afterwards.')) return;
+    el('eddSave').disabled = true;
+    try {
+      const eddAssessment = {
+        answers: collectAnswers(form, FORM_TYPES.enhanced),
+        completedAt: serverTimestamp(),
+        completedBy: auth.currentUser.uid,
+      };
+      await updateDoc(doc(db, 'FICA_SUBMISSIONS', sub.id), { eddAssessment });
+      logAccess('edd.completed', sub.id);
+      sub.eddAssessment = { ...eddAssessment, completedAt: Timestamp.now() };
+      renderStats();
+      renderTable();
+      renderDetail(sub.id);
+    } catch (err) {
+      showError('eddError', err.message || 'Could not save the assessment.');
+      el('eddSave').disabled = false;
+    }
+  });
 }
 
 function wireEvents() {
@@ -336,7 +402,6 @@ function wireEvents() {
     el('step-dashboard').hidden = false;
   });
   el('printBtn').addEventListener('click', () => window.print());
-  el('detailDelete').addEventListener('click', deleteSubmission);
   el('docPreviewClose').addEventListener('click', closeDocPreview);
   el('docPreviewOverlay').addEventListener('click', (e) => {
     if (e.target.id === 'docPreviewOverlay') closeDocPreview();

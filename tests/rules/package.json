@@ -1,0 +1,14 @@
+{
+  "name": "fica-secure-rules-tests",
+  "private": true,
+  "type": "module",
+  "description": "Firestore/Storage security rules tests. Kept separate so firebase-tools never ships with the Vercel deploy. Needs Java 11+.",
+  "scripts": {
+    "test": "firebase emulators:exec --only firestore,storage --project demo-fica \"node --test rules.test.mjs\""
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.0",
+    "firebase": "^12.0.0",
+    "firebase-tools": "^15.0.0"
+  }
+}

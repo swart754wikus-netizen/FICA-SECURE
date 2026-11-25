@@ -1,7 +1,7 @@
 import { auth, db, storage, signInWithCustomToken, apiGet, apiPost } from './firebaseClient.js';
 import { collection, addDoc, doc, updateDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/12.0.0/firebase-firestore.js';
 import { ref, uploadBytes } from 'https://www.gstatic.com/firebasejs/12.0.0/firebase-storage.js';
-import { FORM_TYPES, REQUIRED_DOCUMENTS_DEFAULT } from './formDefinitions.js';
+import { CLIENT_FORM_TYPES as FORM_TYPES, REQUIRED_DOCUMENTS_DEFAULT } from './formDefinitions.js';
 import { renderForm, validateForm, collectAnswers } from './formRenderer.js';
 import { initSignaturePad } from './signaturePad.js';
 

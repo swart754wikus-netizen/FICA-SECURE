@@ -125,9 +125,12 @@ export const FORM_TYPES = {
     }),
   },
 
+  // INTERNAL — completed by the agency (risk weighting, FCO sign-off), never by the client.
+  // Key kept as 'enhanced' so submissions made before this change still render.
   enhanced: {
     key: 'enhanced',
-    typeName: 'Enhanced Due Diligence',
+    typeName: 'EDD Risk Assessment',
+    internal: true,
     fields: [
       { name: 'fullNames', label: 'Full names and surname', type: 'text' },
       { name: 'idNumber', label: 'ID/passport number', type: 'text' },
@@ -164,5 +167,45 @@ export const FORM_TYPES = {
     ],
   },
 };
+
+/** Form types a client may choose from. The EDD risk assessment is agency-only. */
+export const CLIENT_FORM_TYPES = Object.fromEntries(Object.entries(FORM_TYPES).filter(([, t]) => !t.internal));
+
+// Answers are stored keyed by question label, so look labels up from the definitions
+// rather than duplicating question text here.
+function labelOf(typeKey, name) {
+  const find = (fields) => {
+    for (const f of fields) {
+      if (f.name === name) return f.label;
+      const inner = f.special && find(f.special.reveal);
+      if (inner) return inner;
+    }
+    return null;
+  };
+  return FORM_TYPES[typeKey] ? find(FORM_TYPES[typeKey].fields) : null;
+}
+
+/**
+ * Risk-based EDD triggers derived from the client's own answers (FICA s21F–H, RMCP).
+ * The client never chooses "enhanced" themselves — the agency must treat a client as
+ * EDD whenever any of these apply. Computed at review time, so it can't be spoofed by
+ * a value stored on the submission.
+ */
+export function eddTriggers(sub) {
+  const a = sub.answers || {};
+  const val = (name) => String(a[labelOf(sub.type, name)] ?? '').trim();
+  const reasons = [];
+  if (val('fpep') === 'Yes') reasons.push('Foreign prominent public official (FPPO)');
+  if (val('dpip') === 'Yes') reasons.push('Domestic prominent influential person (DPIP)');
+  if (val('pepFamily') === 'Yes') reasons.push('Family member / close associate of a PEP');
+  if (val('saCitizen') === 'No') reasons.push('Not an SA citizen or permanent resident');
+  if (val('operatesOnlyInSA') === 'No') reasons.push('Entity operates outside South Africa');
+  if (val('cashOver50k') === 'Yes') reasons.push('Cash payments of R50,000 or more');
+  if (['Cash', 'International transfer'].includes(val('paymentSource'))) reasons.push(`Payment source: ${val('paymentSource')}`);
+  if (val('sourceOfFunds') === 'Lottery/gambling') reasons.push('Source of funds: lottery/gambling');
+  if (val('form1Completed') === 'Not yet') reasons.push('Beneficial owner forms (Form 1) outstanding');
+  if (sub.type === 'enhanced') reasons.push('Legacy enhanced due diligence submission');
+  return reasons;
+}
 
 export { REQUIRED_DOCUMENTS_DEFAULT };
