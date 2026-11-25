@@ -79,13 +79,13 @@ What this adds:
 
 ### Deploy order (do it in this order or you'll lock yourself out)
 
-1. **Vercel env:** add `DATA_ENCRYPTION_KEY` (see step 4). `SUPER_ADMIN_EMAIL` is no longer used and can be removed.
-2. **Grant yourself super admin** (with the service-account env vars set locally):
-   `node scripts/grantSuperAdmin.js your-admin-email@example.com`
+1. **Vercel env:** add `DATA_ENCRYPTION_KEY` for Production **and** Preview (same value — they share one Firebase project). Keep `SUPER_ADMIN_EMAIL` for now.
+2. **Become super admin (no terminal needed):** while the *old* rules are still published, open `/superadmin` on the deployment (preview or production) and log in with your admin email and password. `api/claimSuperAdmin.js` converts that account to the `superAdmin` claim automatically. (Alternative: `node scripts/grantSuperAdmin.js <email>` with the service-account env vars.)
 3. **Merge and deploy** to Vercel.
-4. **Publish** `firestore.rules` and `storage.rules` (step 3 above). Then sign out of `/superadmin` and back in.
-5. **Per agency:** Super admin → Edit → Team → add the principal with a temporary password and tell them by phone. On first login they set up their authenticator; they can then add their own agents. Until then the agency keeps working on the shared password.
-6. When an agency is comfortable with personal invites, untick "Allow the shared client link".
+4. **Publish** `firestore.rules` and `storage.rules` (step 3 above). Sign out of `/superadmin` and back in to confirm it still works.
+5. Optional: remove `SUPER_ADMIN_EMAIL` from Vercel to switch off step 2's automatic upgrade.
+6. **Per agency:** Super admin → Edit → Team → add the principal with a temporary password and tell them by phone. On first login they set up their authenticator; they can then add their own agents. Until then the agency keeps working on the shared password.
+7. When an agency is comfortable with personal invites, untick "Allow the shared client link".
 
 Tests: `npm test` (API, no network needed) and `cd tests/rules && npm install && npm test` (security rules in the Firebase emulator, needs Java 11+).
 

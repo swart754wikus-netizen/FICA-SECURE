@@ -142,3 +142,17 @@ test('super admin endpoints need the claim, not an email', async () => {
   assert.equal((await call('adminUpdateCompany', { companyId: 'acme', sharedLinkEnabled: false }, { token: ADMIN() })).statusCode, 200);
   assert.equal(fake.store.get('COMPANIES/acme').sharedLinkEnabled, false);
 });
+
+test('claimSuperAdmin: only the configured admin email, via password sign-in', async () => {
+  process.env.SUPER_ADMIN_EMAIL = 'Owner@Example.com';
+  const pw = (email, extra = {}) => asToken({ uid: `u-${email}`, email, firebase: { sign_in_provider: 'password' }, ...extra });
+  assert.equal((await call('claimSuperAdmin', {}, { token: pw('someone@else.com') })).statusCode, 403);
+  assert.equal((await call('claimSuperAdmin', {}, { token: asToken({ uid: 'g', email: 'owner@example.com', firebase: { sign_in_provider: 'google.com' } }) })).statusCode, 403);
+  assert.equal((await call('claimSuperAdmin', {}, { token: asToken({ uid: 'agent:acme:x', role: 'agent', companyId: 'acme' }) })).statusCode, 403);
+  assert.equal((await call('claimSuperAdmin', {})).statusCode, 401);
+  const ok = await call('claimSuperAdmin', {}, { token: pw('owner@example.com') });
+  assert.equal(ok.statusCode, 200);
+  assert.equal(fake.auth.claims.get('u-owner@example.com').superAdmin, true);
+  delete process.env.SUPER_ADMIN_EMAIL;
+  assert.equal((await call('claimSuperAdmin', {}, { token: pw('owner@example.com') })).statusCode, 403, 'disabled once env var removed');
+});

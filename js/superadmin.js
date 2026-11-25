@@ -336,7 +336,15 @@ function wireEvents() {
     el('loginSubmit').disabled = true;
     try {
       const cred = await signInWithEmailAndPassword(auth, el('email').value.trim(), el('password').value);
-      const { claims } = await cred.user.getIdTokenResult(true);
+      let { claims } = await cred.user.getIdTokenResult(true);
+      if (claims.superAdmin !== true) {
+        // First login after the upgrade: convert the configured admin account to a
+        // super admin claim (see api/claimSuperAdmin.js), then pick up the new token.
+        try {
+          await apiPost('claimSuperAdmin', {}, await cred.user.getIdToken());
+          ({ claims } = await cred.user.getIdTokenResult(true));
+        } catch { /* fall through to the error below */ }
+      }
       if (claims.superAdmin !== true) {
         await signOut(auth);
         throw new Error('not-admin');
@@ -347,7 +355,7 @@ function wireEvents() {
       await loadCompanies();
     } catch (err) {
       showError('loginError', err.message === 'not-admin'
-        ? 'This account is not a super admin. Run scripts/grantSuperAdmin.js for it, then log in again.'
+        ? 'This account is not a super admin.'
         : 'Could not log in with those credentials.');
     } finally {
       el('loginSubmit').disabled = false;

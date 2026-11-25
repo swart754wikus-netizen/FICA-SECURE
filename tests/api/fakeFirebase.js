@@ -53,6 +53,9 @@ const auth = {
   async createCustomToken(uid, claims) { return JSON.stringify({ uid, claims }); },
   async verifyIdToken(t) { if (!tokens.has(t)) throw new Error('bad token'); return tokens.get(t); },
   async revokeRefreshTokens(uid) { revoked.push(uid); },
+  claims: new Map(),
+  async getUser(uid) { return { uid, customClaims: this.claims.get(uid) || null }; },
+  async setCustomUserClaims(uid, c) { this.claims.set(uid, c); },
 };
 
 module.exports = { db, auth, store, tokens, revoked, admin: {} };
