@@ -40,6 +40,13 @@ module.exports = async (req, res) => {
   const valid = await bcrypt.compare(password, company.agentPasswordHash || DUMMY_HASH);
   if (!valid) return res.status(403).json({ error: 'Wrong company name or password' });
 
+  // Once an agency has individual logins, the shared password stops working — so
+  // every action can be traced to a person and protected by MFA.
+  const hasAgents = !(await db.collection('AGENTS').where('companyId', '==', companyDoc.id).limit(1).get()).empty;
+  if (hasAgents) {
+    return res.status(403).json({ error: 'Your agency now uses individual logins. Log in with your own email address.' });
+  }
+
   await clearAttempts(db, key);
 
   const token = await auth.createCustomToken(`agent:${companyDoc.id}`, {
@@ -53,5 +60,7 @@ module.exports = async (req, res) => {
     name: company.name,
     slug: company.slug,
     logoUrl: company.logoUrl || '',
+    sharedLinkEnabled: company.sharedLinkEnabled !== false,
+    agent: { name: 'Shared agency login', email: '', role: 'legacy' },
   });
 };

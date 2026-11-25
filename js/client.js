@@ -1,12 +1,14 @@
 import { auth, db, storage, signInWithCustomToken, apiGet, apiPost } from './firebaseClient.js';
-import { collection, addDoc, doc, updateDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/12.0.0/firebase-firestore.js';
+import { collection, addDoc, setDoc, doc, updateDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/12.0.0/firebase-firestore.js';
 import { ref, uploadBytes } from 'https://www.gstatic.com/firebasejs/12.0.0/firebase-storage.js';
-import { CLIENT_FORM_TYPES as FORM_TYPES, REQUIRED_DOCUMENTS_DEFAULT } from './formDefinitions.js';
+import { CLIENT_FORM_TYPES as FORM_TYPES, REQUIRED_DOCUMENTS_BY_TYPE } from './formDefinitions.js';
 import { renderForm, validateForm, collectAnswers } from './formRenderer.js';
 import { initSignaturePad } from './signaturePad.js';
 
 const state = {
   slug: new URLSearchParams(location.search).get('company') || '',
+  invite: new URLSearchParams(location.search).get('invite') || '',
+  inviteId: null,
   companyId: null,
   name: '',
   requiredDocuments: null,
@@ -61,6 +63,7 @@ async function loadBranding() {
     showError('authError', 'This link is invalid. Ask your agent for the correct link.');
     el('authSubmit').disabled = true;
   }
+  return null;
 }
 
 function renderTypeGrid() {
@@ -78,16 +81,47 @@ function renderTypeGrid() {
   });
 }
 
+function escapeHtml(str) {
+  return String(str ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
 function renderDocumentList() {
-  const docs = Array.isArray(state.requiredDocuments) ? state.requiredDocuments : REQUIRED_DOCUMENTS_DEFAULT;
+  // Agency-configured list wins; otherwise use the defaults for this client type.
+  const docs = Array.isArray(state.requiredDocuments) && state.requiredDocuments.length
+    ? state.requiredDocuments
+    : REQUIRED_DOCUMENTS_BY_TYPE[state.formTypeKey] || REQUIRED_DOCUMENTS_BY_TYPE.natural;
   el('documentList').innerHTML = docs
     .map(
       (label, i) => `<div class="field">
-        <label for="doc_${i}">${label}</label>
-        <input type="file" id="doc_${i}" data-doc-label="${label}" accept="image/*,application/pdf">
+        <label for="doc_${i}">${escapeHtml(label)}</label>
+        <input type="file" id="doc_${i}" data-doc-label="${escapeHtml(label)}" accept="image/jpeg,image/png,image/heic,image/heif,image/webp,application/pdf">
       </div>`
     )
     .join('');
+}
+
+/** Personal invite link: no access code needed, and the link works for one submission only. */
+async function redeemInvite() {
+  el('authSubmit').disabled = true;
+  el('accessCode').closest('.field').hidden = true;
+  el('step-auth').querySelector('h2').textContent = 'Opening your secure form…';
+  el('step-auth').querySelector('.field-hint').textContent = '';
+  try {
+    const result = await apiPost('clientInvite', { action: 'redeem', slug: state.slug, invite: state.invite });
+    await signInWithCustomToken(auth, result.token);
+    // Don't leave the single-use token sitting in the address bar / browser history.
+    history.replaceState(null, '', `${location.pathname}?company=${encodeURIComponent(state.slug)}`);
+    state.companyId = result.companyId;
+    state.name = result.name;
+    state.inviteId = result.inviteId;
+    state.requiredDocuments = result.requiredDocuments;
+    el('typeGreeting').textContent = `Hi ${result.clientName.split(' ')[0]}, please select the option that describes you.`;
+    renderTypeGrid();
+    showStep('step-type');
+  } catch (err) {
+    el('step-auth').querySelector('h2').textContent = 'Link unavailable';
+    showError('authError', err.message || 'This link is invalid. Ask your agent for a new one.');
+  }
 }
 
 function sanitize(label) {
@@ -97,7 +131,7 @@ function sanitize(label) {
 async function submitFica(signatureDataUrl) {
   const formDef = FORM_TYPES[state.formTypeKey];
 
-  const submissionRef = await addDoc(collection(db, 'FICA_SUBMISSIONS'), {
+  const data = {
     companyId: state.companyId,
     companyName: state.name,
     type: formDef.key,
@@ -105,7 +139,15 @@ async function submitFica(signatureDataUrl) {
     answers: state.answers,
     signature: signatureDataUrl,
     createdAt: serverTimestamp(),
-  });
+  };
+  let submissionRef;
+  if (state.inviteId) {
+    // Submission ID = invite ID: firestore.rules allow exactly one per personal link.
+    submissionRef = doc(db, 'FICA_SUBMISSIONS', state.inviteId);
+    await setDoc(submissionRef, { ...data, inviteId: state.inviteId });
+  } else {
+    submissionRef = await addDoc(collection(db, 'FICA_SUBMISSIONS'), data);
+  }
 
   const attachments = {};
   for (const [label, file] of Object.entries(state.files)) {
@@ -186,5 +228,5 @@ function wireEvents() {
   });
 }
 
-loadBranding();
+loadBranding().then(() => { if (state.invite && !el('authSubmit').disabled) redeemInvite(); });
 wireEvents();

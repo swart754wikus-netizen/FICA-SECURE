@@ -12,8 +12,10 @@ module.exports = async (req, res) => {
   }
 
   const { name, slug, accessCode, agentPassword, status, payment, requiredDocuments } = req.body || {};
-  if (!name || !slug || !accessCode || !agentPassword) {
-    return res.status(400).json({ error: 'name, slug, accessCode, and agentPassword are required' });
+  // agentPassword (shared agency login) is optional now — new agencies should get
+  // individual logins via /api/manageAgents instead.
+  if (!name || !slug || !accessCode) {
+    return res.status(400).json({ error: 'name, slug, and accessCode are required' });
   }
   // slug is used verbatim as a Firestore document ID and as a URL query value
   // (index.html?company=<slug>), so it must be restricted to characters that
@@ -24,7 +26,7 @@ module.exports = async (req, res) => {
 
   const [accessCodeHash, agentPasswordHash] = await Promise.all([
     bcrypt.hash(accessCode, 10),
-    bcrypt.hash(agentPassword, 10),
+    agentPassword ? bcrypt.hash(agentPassword, 10) : null,
   ]);
 
   // 14-day trial clock starts the moment the agency is created, regardless

@@ -2,19 +2,30 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // ---- Identity ---------------------------------------------------------------------
+    // Super admin: custom claim granted with scripts/grantSuperAdmin.js — not tied to an
+    // email address, so it can't be obtained by registering an account with that email.
     function isSuperAdmin() {
-      return request.auth != null &&
-             request.auth.token.email == 'swart754wikus@gmail.com';
+      return request.auth != null && request.auth.token.get('superAdmin', false) == true;
+    }
+    // Hard session cap enforced server-side, even if a browser keeps refreshing tokens.
+    function signedInWithin(hours) {
+      return request.time < timestamp.value(request.auth.token.auth_time * 1000) + duration.value(hours, 'h');
     }
     function isAgentFor(companyId) {
       return request.auth != null &&
              request.auth.token.role == 'agent' &&
-             request.auth.token.companyId == companyId;
+             request.auth.token.companyId == companyId &&
+             signedInWithin(12);
     }
     function isClientFor(companyId) {
       return request.auth != null &&
              request.auth.token.role == 'client' &&
-             request.auth.token.companyId == companyId;
+             request.auth.token.companyId == companyId &&
+             signedInWithin(2);
+    }
+    function hasInvite() {
+      return 'inviteId' in request.auth.token;
     }
 
     match /COMPANIES/{companyId} {
@@ -25,9 +36,29 @@ service cloud.firestore {
       allow write: if isSuperAdmin();
     }
 
+    // ---- FICA submissions -------------------------------------------------------------
     // FICA s22–s23 retention: records must be kept for at least 5 years.
     function retentionExpired() {
       return request.time > resource.data.createdAt + duration.value(1827, 'd');
+    }
+    function inviteUsable(inviteId) {
+      let inv = get(/databases/$(database)/documents/INVITES/$(inviteId)).data;
+      return inv.status == 'pending' && inv.expiresAt > request.time && inv.companyId == request.auth.token.companyId;
+    }
+    function sharedLinkAllowed(companyId) {
+      return get(/databases/$(database)/documents/COMPANIES/$(companyId)).data.get('sharedLinkEnabled', true) != false;
+    }
+    // Invite clients: the submission ID must BE their invite ID, so each personal link
+    // yields exactly one submission (a second write would be an update, which is denied).
+    // Shared-code clients: only while the agency still allows the shared link.
+    function clientMayCreate(subId) {
+      return (hasInvite() &&
+                subId == request.auth.token.inviteId &&
+                request.resource.data.inviteId == subId &&
+                inviteUsable(subId)) ||
+             (!hasInvite() &&
+                !('inviteId' in request.resource.data) &&
+                sharedLinkAllowed(request.resource.data.companyId));
     }
 
     match /FICA_SUBMISSIONS/{subId} {
@@ -41,28 +72,44 @@ service cloud.firestore {
       // fields. They can't choose the internal EDD assessment form.
       allow create: if isClientFor(request.resource.data.companyId)
                     && request.resource.data.createdAt == request.time
-                    && request.resource.data.type in ['natural', 'trust', 'partnership']
-                    && request.resource.data.keys().hasOnly(['companyId', 'companyName', 'type', 'typeName', 'answers', 'signature', 'createdAt']);
+                    && request.resource.data.type in ['natural', 'company', 'trust', 'partnership']
+                    && request.resource.data.keys().hasOnly(['companyId', 'companyName', 'type', 'typeName', 'answers', 'signature', 'createdAt', 'inviteId'])
+                    && clientMayCreate(subId);
 
       // Client: attach uploaded-document metadata ONCE, within an hour of creating
       // the submission — never alter answers, signature or documents afterwards.
       allow update: if isClientFor(resource.data.companyId)
+                    && (!hasInvite() || subId == request.auth.token.inviteId)
                     && !('attachments' in resource.data)
                     && request.time < resource.data.createdAt + duration.value(1, 'h')
                     && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['attachments']);
 
-      // Agent: may only ADD the internal EDD risk assessment, once, server-timestamped.
-      // Client answers, signature and documents are evidence and stay immutable —
-      // there is deliberately no general update path, even for the super admin.
+      // Agent: may only ADD the internal EDD risk assessment, once, server-timestamped,
+      // in their own name. Client answers, signature and documents are evidence and stay
+      // immutable — there is deliberately no general update path, even for the super admin.
       allow update: if isAgentFor(resource.data.companyId)
                     && !('eddAssessment' in resource.data)
                     && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['eddAssessment'])
-                    && request.resource.data.eddAssessment.keys().hasOnly(['answers', 'completedAt', 'completedBy'])
+                    && request.resource.data.eddAssessment.keys().hasOnly(['answers', 'completedAt', 'completedBy', 'completedByName'])
                     && request.resource.data.eddAssessment.completedAt == request.time
-                    && request.resource.data.eddAssessment.completedBy == request.auth.uid;
+                    && request.resource.data.eddAssessment.completedBy == request.auth.uid
+                    && (!('completedByName' in request.resource.data.eddAssessment) ||
+                        request.resource.data.eddAssessment.completedByName == request.auth.token.name);
     }
 
-    // Append-only access log: who opened which record/document, and EDD sign-offs.
+    // ---- Per-client invites (created/revoked only via /api/clientInvite) --------------
+    match /INVITES/{inviteId} {
+      allow read: if isSuperAdmin() || isAgentFor(resource.data.companyId);
+      allow write: if false;
+    }
+
+    // ---- Individual agent accounts: password hashes + encrypted MFA secrets -----------
+    // Admin SDK only (/api/agentAuth, /api/manageAgents). Never readable from a browser.
+    match /AGENTS/{agentId} {
+      allow read, write: if false;
+    }
+
+    // ---- Append-only access log -------------------------------------------------------
     match /AUDIT_LOG/{entryId} {
       allow create: if (isAgentFor(request.resource.data.companyId) || isSuperAdmin())
                     && request.resource.data.ts == request.time

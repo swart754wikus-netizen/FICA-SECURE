@@ -41,6 +41,11 @@ module.exports = async (req, res) => {
   const valid = await bcrypt.compare(accessCode, company.accessCodeHash || DUMMY_HASH);
   if (!valid) return res.status(403).json({ error: 'Wrong access code' });
 
+  // Agencies can switch off the shared code once they send per-client invite links.
+  if (company.sharedLinkEnabled === false) {
+    return res.status(403).json({ error: 'Please use the personal link your agent sent you.' });
+  }
+
   await clearAttempts(db, key);
 
   const token = await auth.createCustomToken(`client:${companyDoc.id}`, {

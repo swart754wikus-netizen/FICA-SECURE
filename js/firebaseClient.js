@@ -1,5 +1,5 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.0.0/firebase-app.js';
-import { getAuth, signInWithCustomToken, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/12.0.0/firebase-auth.js';
+import { getAuth, signInWithCustomToken, signInWithEmailAndPassword, signOut, onAuthStateChanged, setPersistence, browserSessionPersistence } from 'https://www.gstatic.com/firebasejs/12.0.0/firebase-auth.js';
 import { getFirestore } from 'https://www.gstatic.com/firebasejs/12.0.0/firebase-firestore.js';
 import { getStorage } from 'https://www.gstatic.com/firebasejs/12.0.0/firebase-storage.js';
 
@@ -20,7 +20,7 @@ export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
 
-export { signInWithCustomToken, signInWithEmailAndPassword, signOut, onAuthStateChanged };
+export { signInWithCustomToken, signInWithEmailAndPassword, signOut, onAuthStateChanged, setPersistence, browserSessionPersistence };
 
 export async function apiPost(path, body, idToken) {
   const headers = { 'Content-Type': 'application/json' };

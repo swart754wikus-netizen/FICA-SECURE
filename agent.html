@@ -21,8 +21,24 @@
     <div class="auth-brand-title">FICA Secure</div>
     <div class="auth-brand-subtitle">Agent Portal</div>
   </div>
-  <div class="auth-card">
-    <h2>Log in to your agency</h2>
+  <div class="auth-card" id="loginCard">
+    <h2>Log in</h2>
+    <div class="field">
+      <label for="agentEmail">Email</label>
+      <input type="email" id="agentEmail" autocomplete="username">
+    </div>
+    <div class="field">
+      <label for="agentOwnPassword">Password</label>
+      <input type="password" id="agentOwnPassword" autocomplete="current-password">
+    </div>
+    <button id="loginSubmit">Continue</button>
+    <div class="error" id="loginError" hidden></div>
+    <p class="field-hint" style="margin-top:16px;"><button type="button" class="linkish" id="showLegacy">Agency still using one shared password?</button></p>
+  </div>
+
+  <div class="auth-card" id="legacyCard" hidden>
+    <h2>Shared agency login</h2>
+    <p class="field-hint">Being phased out — ask GLS Technologies to set up individual logins for your team.</p>
     <div class="field">
       <label for="companyName">Company name</label>
       <input type="text" id="companyName" autocomplete="off">
@@ -31,8 +47,29 @@
       <label for="agentPassword">Agent password</label>
       <input type="password" id="agentPassword" autocomplete="off">
     </div>
-    <button id="loginSubmit">Log in</button>
-    <div class="error" id="loginError" hidden></div>
+    <button id="legacySubmit">Log in</button>
+    <div class="error" id="legacyError" hidden></div>
+    <p class="field-hint" style="margin-top:16px;"><button type="button" class="linkish" id="showLogin">← Log in with your own email</button></p>
+  </div>
+
+  <div class="auth-card" id="mfaCard" hidden>
+    <h2 id="mfaTitle">Enter your 6-digit code</h2>
+    <div id="enrollBox" hidden>
+      <p class="field-hint">Two-step verification is required for FICA records. Install Google Authenticator or Microsoft Authenticator on your phone, then add this account:</p>
+      <ol class="field-hint enroll-steps">
+        <li>In the app, choose <strong>Add account → Enter a setup key</strong> (or tap the link below on your phone).</li>
+        <li>Key: <code id="enrollSecret" class="setup-key"></code></li>
+        <li>Enter the 6-digit code the app shows.</li>
+      </ol>
+      <p><a id="enrollLink" href="#">Open in authenticator app</a></p>
+    </div>
+    <p class="field-hint" id="mfaHint">Open your authenticator app.</p>
+    <div class="field">
+      <label for="mfaCode">Code</label>
+      <input type="text" id="mfaCode" inputmode="numeric" maxlength="6" autocomplete="one-time-code">
+    </div>
+    <button id="mfaSubmit">Verify</button>
+    <div class="error" id="mfaError" hidden></div>
   </div>
 </div>
 
@@ -42,13 +79,36 @@
     <div class="agency-hero no-print" id="agencyHero"></div>
 
     <div class="card no-print">
-      <h2>Client link</h2>
-      <p class="field-hint">Share this link with clients so they can complete their FICA form.</p>
+      <h2>Invite a client</h2>
+      <p class="field-hint">Creates a personal link that works once and expires after 7 days. No access code needed.</p>
+      <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <input type="text" id="inviteName" placeholder="Client's full name" style="flex:1; min-width:200px;">
+        <button type="button" id="inviteCreate">Create link</button>
+      </div>
+      <div class="error" id="inviteError" hidden></div>
+      <div id="inviteResult" class="invite-result" hidden>
+        <p class="field-hint">Send this link to <strong id="inviteResultName"></strong>. It is shown only now — copy it before leaving this page.</p>
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+          <input type="text" id="inviteLink" readonly style="flex:1; min-width:200px;">
+          <button type="button" class="secondary" id="inviteCopy">Copy</button>
+          <a class="btn secondary" id="inviteWhatsApp" target="_blank" rel="noopener">WhatsApp</a>
+        </div>
+      </div>
+      <details class="invite-list" id="inviteListBox">
+        <summary>Recent invites</summary>
+        <table><thead><tr><th>Client</th><th>Created</th><th>Status</th><th></th></tr></thead><tbody id="inviteBody"></tbody></table>
+      </details>
+    </div>
+
+    <div class="card no-print" id="sharedLinkCard" hidden>
+      <h2>Shared client link</h2>
+      <p class="field-hint">Anyone with this link and your agency access code can submit. Personal invites (above) are safer.</p>
       <div style="display:flex; gap:10px;">
         <input type="text" id="clientLink" readonly style="flex:1;">
         <button type="button" class="secondary" id="copyLinkBtn">Copy</button>
       </div>
     </div>
+
 
     <div class="stat-grid" id="statGrid"></div>
 
@@ -59,6 +119,7 @@
           <option value="">All types</option>
           <option value="natural">Natural Person</option>
           <option value="trust">Trust</option>
+          <option value="company">Company / CC</option>
           <option value="partnership">Partnership</option>
           <option value="__edd">⚠ EDD outstanding</option>
           <option value="enhanced">Legacy: Enhanced DD submissions</option>
@@ -69,6 +130,27 @@
         <tbody id="submissionsBody"></tbody>
       </table>
       <p id="emptyState" class="field-hint" hidden>No submissions yet.</p>
+    </div>
+
+    <div class="card no-print notice-card">
+      <strong>Your agency's FICA duties that this portal does not do for you:</strong>
+      screen every client (and beneficial owner) against the FIC's targeted financial sanctions list,
+      record a risk rating under your RMCP, and report suspicious or unusual transactions to the FIC via goAML.
+    </div>
+
+    <div class="card no-print" id="teamCard" hidden>
+      <h2>Team</h2>
+      <p class="field-hint">Each person gets their own login with two-step verification. Once anyone is added, the old shared agency password stops working.</p>
+      <table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th></th></tr></thead><tbody id="teamBody"></tbody></table>
+      <h3 style="margin-top:20px;">Add a person</h3>
+      <div class="team-form">
+        <input type="text" id="teamName" placeholder="Full name">
+        <input type="email" id="teamEmail" placeholder="Email">
+        <select id="teamRole"><option value="agent">Agent</option><option value="principal">Principal (can manage team)</option></select>
+        <input type="text" id="teamPassword" placeholder="Temporary password (10+ characters)">
+        <button type="button" id="teamAdd">Add</button>
+      </div>
+      <div class="error" id="teamError" hidden></div>
     </div>
   </section>
 

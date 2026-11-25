@@ -20,13 +20,14 @@ module.exports = async (req, res) => {
 
   // Only these fields may be edited from the admin panel; anything else in the
   // request body (e.g. accessCodeHash) is ignored rather than trusted verbatim.
-  const allowed = ['name', 'tagline', 'logoUrl', 'status', 'payment', 'requiredDocuments', 'lastPaidAt', 'nextDueAt', 'trialEndsAt'];
+  const allowed = ['name', 'tagline', 'logoUrl', 'status', 'payment', 'requiredDocuments', 'lastPaidAt', 'nextDueAt', 'trialEndsAt', 'sharedLinkEnabled'];
   const update = {};
   for (const key of allowed) {
     if (key in fields) update[key] = fields[key];
   }
   // Agent login looks companies up by name (see agentLogin.js), so this
   // normalized copy must stay in sync whenever the display name changes.
+  if ('sharedLinkEnabled' in update) update.sharedLinkEnabled = update.sharedLinkEnabled !== false;
   if ('name' in update) update.nameLower = update.name.trim().toLowerCase();
 
   // Blank = keep existing hash, matching the v1 "leave blank to keep current password" UX.

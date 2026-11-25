@@ -2,19 +2,26 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
 
+    function isSuperAdmin() {
+      return request.auth != null && request.auth.token.get('superAdmin', false) == true;
+    }
+
     match /logos/{fileName} {
       allow read: if true; // public branding images
-      allow write: if request.auth != null &&
-                     request.auth.token.email == 'swart754wikus@gmail.com' &&
+      allow write: if isSuperAdmin() &&
                      request.resource.size < 5 * 1024 * 1024 &&
                      request.resource.contentType.matches('image/.*');
     }
 
     match /submissions/{companyId}/{submissionId}/{fileName} {
+      // Invite clients may only upload into their own submission folder (= invite ID).
+      // Sessions are capped at 2 hours from sign-in.
       function isClientUploadFor(cid) {
         return request.auth != null &&
                request.auth.token.role == 'client' &&
                request.auth.token.companyId == cid &&
+               request.time < timestamp.value(request.auth.token.auth_time * 1000) + duration.value(2, 'h') &&
+               (!('inviteId' in request.auth.token) || request.auth.token.inviteId == submissionId) &&
                request.resource.size < 15 * 1024 * 1024 &&
                request.resource.contentType.matches('image/(jpeg|png|heic|heif|webp)|application/pdf');
       }
@@ -24,12 +31,12 @@ service firebase.storage {
       allow update: if isClientUploadFor(companyId) &&
                       request.time < resource.timeCreated + duration.value(1, 'h');
       allow read: if request.auth != null &&
-                    (request.auth.token.email == 'swart754wikus@gmail.com' ||
+                    (isSuperAdmin() ||
                      (request.auth.token.role == 'agent' &&
-                      request.auth.token.companyId == companyId));
+                      request.auth.token.companyId == companyId &&
+                      request.time < timestamp.value(request.auth.token.auth_time * 1000) + duration.value(12, 'h')));
       // FICA s22–s23: no deletion within 5 years; afterwards super admin only.
-      allow delete: if request.auth != null &&
-                      request.auth.token.email == 'swart754wikus@gmail.com' &&
+      allow delete: if isSuperAdmin() &&
                       request.time > resource.timeCreated + duration.value(1827, 'd');
     }
 

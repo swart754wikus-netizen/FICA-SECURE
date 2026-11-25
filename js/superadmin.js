@@ -113,8 +113,8 @@ function renderTable() {
     .map((c) => {
       const trial = trialInfo(c);
       return `<tr data-id="${c.id}">
-        <td>${c.name}</td>
-        <td>${c.slug}</td>
+        <td>${escapeHtml(c.name)}</td>
+        <td>${escapeHtml(c.slug)}</td>
         <td><span class="badge badge--${c.status}">${c.status}</span></td>
         <td>${trial.className ? `<span class="badge ${trial.className}">${trial.label}</span>` : trial.label}</td>
         <td><button type="button" class="secondary" data-edit="${c.id}">Edit</button></td>
@@ -144,7 +144,7 @@ function renderAccountsTable() {
           ? ''
           : `<button type="button" class="danger" data-suspend="${c.id}" data-name="${escapeHtml(c.name)}">Suspend</button>`;
       return `<tr data-id="${c.id}">
-        <td>${c.name}</td>
+        <td>${escapeHtml(c.name)}</td>
         <td><span class="badge badge--${c.payment}">${c.payment}</span></td>
         <td>${c.lastPaidAt || '—'}</td>
         <td>${due.className ? `<span class="badge ${due.className}">${due.label}</span>` : due.label}</td>
@@ -225,6 +225,8 @@ function openEdit(id) {
   el('editAccessCode').value = '';
   el('editAgentPassword').value = '';
   el('editLogo').value = '';
+  el('editSharedLink').checked = company.sharedLinkEnabled !== false;
+  loadAdminTeam();
   if (company.logoUrl) {
     el('editLogoPreview').src = company.logoUrl;
     el('editLogoPreview').hidden = false;
@@ -258,6 +260,7 @@ async function saveEdit() {
       trialEndsAt: el('editTrialEndsAt').value || null,
       lastPaidAt: el('editLastPaidAt').value || null,
       nextDueAt: el('editNextDueAt').value || null,
+      sharedLinkEnabled: el('editSharedLink').checked,
       ...(logoUrl ? { logoUrl } : {}),
       ...(el('editAccessCode').value ? { accessCode: el('editAccessCode').value } : {}),
       ...(el('editAgentPassword').value ? { agentPassword: el('editAgentPassword').value } : {}),
@@ -270,6 +273,46 @@ async function saveEdit() {
     showError('editError', err.message || 'Could not save changes.');
   } finally {
     el('editSave').disabled = false;
+  }
+}
+
+async function loadAdminTeam() {
+  hideError('adminTeamError');
+  el('adminTeamBody').innerHTML = '<tr><td colspan="5" class="field-hint">Loading…</td></tr>';
+  try {
+    const { agents } = await authedFetch('manageAgents', { action: 'list', companyId: state.editingId });
+    el('adminTeamBody').innerHTML = agents.map((a) => `<tr>
+        <td>${escapeHtml(a.name)}</td><td>${escapeHtml(a.email)}</td><td>${escapeHtml(a.role)}</td>
+        <td>${a.active ? (a.mfaEnrolled ? 'Active' : 'Awaiting first login') : 'Deactivated'}</td>
+        <td style="display:flex; gap:6px;">
+          <button type="button" class="secondary" data-team-act="${a.active ? 'off' : 'on'}" data-id="${a.id}">${a.active ? 'Deactivate' : 'Reactivate'}</button>
+          <button type="button" class="secondary" data-team-act="mfa" data-id="${a.id}">Reset 2-step</button>
+        </td></tr>`).join('') || '<tr><td colspan="5" class="field-hint">No individual logins yet — the agency is on the shared password.</td></tr>';
+    el('adminTeamBody').querySelectorAll('[data-team-act]').forEach((b) => b.addEventListener('click', async () => {
+      const { teamAct, id } = b.dataset;
+      try {
+        if (teamAct === 'mfa') await authedFetch('manageAgents', { action: 'resetMfa', companyId: state.editingId, agentId: id });
+        else await authedFetch('manageAgents', { action: 'setActive', companyId: state.editingId, agentId: id, active: teamAct === 'on' });
+        await loadAdminTeam();
+      } catch (err) { showError('adminTeamError', err.message); }
+    }));
+  } catch (err) {
+    showError('adminTeamError', err.message || 'Could not load team.');
+  }
+}
+
+async function addAdminTeamMember() {
+  hideError('adminTeamError');
+  try {
+    await authedFetch('manageAgents', {
+      action: 'create', companyId: state.editingId,
+      name: el('adminTeamName').value.trim(), email: el('adminTeamEmail').value.trim(),
+      role: el('adminTeamRole').value, password: el('adminTeamPassword').value,
+    });
+    ['adminTeamName', 'adminTeamEmail', 'adminTeamPassword'].forEach((i) => (el(i).value = ''));
+    await loadAdminTeam();
+  } catch (err) {
+    showError('adminTeamError', err.message || 'Could not add this person.');
   }
 }
 
@@ -292,13 +335,20 @@ function wireEvents() {
     hideError('loginError');
     el('loginSubmit').disabled = true;
     try {
-      await signInWithEmailAndPassword(auth, el('email').value.trim(), el('password').value);
+      const cred = await signInWithEmailAndPassword(auth, el('email').value.trim(), el('password').value);
+      const { claims } = await cred.user.getIdTokenResult(true);
+      if (claims.superAdmin !== true) {
+        await signOut(auth);
+        throw new Error('not-admin');
+      }
       el('topbar').hidden = false;
       el('step-login').hidden = true;
       el('step-dashboard').hidden = false;
       await loadCompanies();
     } catch (err) {
-      showError('loginError', 'Could not log in with those credentials.');
+      showError('loginError', err.message === 'not-admin'
+        ? 'This account is not a super admin. Run scripts/grantSuperAdmin.js for it, then log in again.'
+        : 'Could not log in with those credentials.');
     } finally {
       el('loginSubmit').disabled = false;
     }
@@ -315,8 +365,8 @@ function wireEvents() {
     const slug = el('newSlug').value.trim();
     const accessCode = el('newAccessCode').value;
     const agentPassword = el('newAgentPassword').value;
-    if (!name || !slug || !accessCode || !agentPassword) {
-      return showError('createError', 'Name, slug, access code, and agent password are all required.');
+    if (!name || !slug || !accessCode) {
+      return showError('createError', 'Name, slug and access code are required.');
     }
     el('createSubmit').disabled = true;
     try {
@@ -357,6 +407,7 @@ function wireEvents() {
   });
   el('editSave').addEventListener('click', saveEdit);
   el('editDelete').addEventListener('click', deleteCompany);
+  el('adminTeamAdd').addEventListener('click', addAdminTeamMember);
   el('markPaidToday').addEventListener('click', () => {
     const today = todayISO();
     el('editLastPaidAt').value = today;
