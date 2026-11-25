@@ -7,6 +7,7 @@ const SOURCE_OF_FUNDS = ['Salary', 'Lottery/gambling', 'Sale of property', 'Inhe
 const SOURCE_OF_WEALTH = ['Past earnings', 'Investments', 'Inheritance', 'Business dealings', 'Sale of property', 'Other'];
 const SERVICE_TYPE = ['Sales', 'Lease', 'Rental', 'Other'];
 
+// Used when the agency hasn't configured its own list (natural person default).
 const REQUIRED_DOCUMENTS_DEFAULT = [
   'Identity Document',
   'Salary Advice / Proof of Income',
@@ -15,6 +16,34 @@ const REQUIRED_DOCUMENTS_DEFAULT = [
   'Marriage Certificate',
   'Ante Nuptial Contract',
 ];
+
+// Sensible defaults per client type, used when the agency hasn't configured its own list.
+const ENTITY_REPRESENTATIVE_DOCS = ['Resolution / letter of authority for the person acting', 'ID of the person acting on behalf of the entity'];
+const REQUIRED_DOCUMENTS_BY_TYPE = {
+  natural: REQUIRED_DOCUMENTS_DEFAULT,
+  company: [
+    'CIPC registration certificate (CoR14.3 / CK1)',
+    'Latest CIPC disclosure / list of directors',
+    'Share register or shareholding structure',
+    'IDs of all directors and beneficial owners (25%+)',
+    'Proof of business address (not older than 3 months)',
+    'Income tax / VAT registration',
+    ...ENTITY_REPRESENTATIVE_DOCS,
+  ],
+  trust: [
+    'Letter of authority from the Master of the High Court',
+    'Trust deed (and amendments)',
+    'IDs of all trustees, founder and named beneficiaries',
+    'Proof of address of the trust / trustees',
+    ...ENTITY_REPRESENTATIVE_DOCS,
+  ],
+  partnership: [
+    'Partnership agreement',
+    'IDs of all partners and beneficial owners',
+    'Proof of business address (not older than 3 months)',
+    ...ENTITY_REPRESENTATIVE_DOCS,
+  ],
+};
 
 function financialBlock(reasonLabel) {
   return [
@@ -29,9 +58,10 @@ function financialBlock(reasonLabel) {
   ];
 }
 
-function legalEntityFields({ nameLabel, regNumberLabel, operatingKey, previousFicaKey, ownersLabel }) {
+function legalEntityFields({ nameLabel, regNumberLabel, operatingKey, previousFicaKey, ownersLabel, extraFirst = [] }) {
   return [
     { name: 'entityName', label: nameLabel, type: 'text' },
+    ...extraFirst,
     { name: 'regNumber', label: regNumberLabel, type: 'text' },
     { name: 'tradingName', label: 'Trading name', type: 'text' },
     { name: 'address', label: 'Registered address', type: 'textarea' },
@@ -101,6 +131,22 @@ export const FORM_TYPES = {
     ],
   },
 
+  company: {
+    key: 'company',
+    typeName: 'Company / CC',
+    fields: legalEntityFields({
+      nameLabel: 'Registered company name',
+      regNumberLabel: 'CIPC registration number',
+      operatingKey: 'companyOperating',
+      previousFicaKey: 'companyPreviousFica',
+      ownersLabel: 'Directors, members, shareholders with 25% or more, and any person who ultimately controls the company (full names and ID numbers)',
+      extraFirst: [
+        { name: 'companyType', label: 'Company type', type: 'select', options: ['Private company (Pty) Ltd', 'Close corporation (CC)', 'Public company (Ltd)', 'Non-profit company (NPC)', 'State-owned company (SOC)', 'Foreign company / external company'] },
+        { name: 'listedCompany', label: 'Is the company listed on a stock exchange?', type: 'radio', options: YES_NO },
+      ],
+    }),
+  },
+
   trust: {
     key: 'trust',
     typeName: 'Trust',
@@ -125,9 +171,12 @@ export const FORM_TYPES = {
     }),
   },
 
+  // INTERNAL — completed by the agency (risk weighting, FCO sign-off), never by the client.
+  // Key kept as 'enhanced' so submissions made before this change still render.
   enhanced: {
     key: 'enhanced',
-    typeName: 'Enhanced Due Diligence',
+    typeName: 'EDD Risk Assessment',
+    internal: true,
     fields: [
       { name: 'fullNames', label: 'Full names and surname', type: 'text' },
       { name: 'idNumber', label: 'ID/passport number', type: 'text' },
@@ -165,4 +214,45 @@ export const FORM_TYPES = {
   },
 };
 
-export { REQUIRED_DOCUMENTS_DEFAULT };
+/** Form types a client may choose from. The EDD risk assessment is agency-only. */
+export const CLIENT_FORM_TYPES = Object.fromEntries(Object.entries(FORM_TYPES).filter(([, t]) => !t.internal));
+
+// Answers are stored keyed by question label, so look labels up from the definitions
+// rather than duplicating question text here.
+function labelOf(typeKey, name) {
+  const find = (fields) => {
+    for (const f of fields) {
+      if (f.name === name) return f.label;
+      const inner = f.special && find(f.special.reveal);
+      if (inner) return inner;
+    }
+    return null;
+  };
+  return FORM_TYPES[typeKey] ? find(FORM_TYPES[typeKey].fields) : null;
+}
+
+/**
+ * Risk-based EDD triggers derived from the client's own answers (FICA s21F–H, RMCP).
+ * The client never chooses "enhanced" themselves — the agency must treat a client as
+ * EDD whenever any of these apply. Computed at review time, so it can't be spoofed by
+ * a value stored on the submission.
+ */
+export function eddTriggers(sub) {
+  const a = sub.answers || {};
+  const val = (name) => String(a[labelOf(sub.type, name)] ?? '').trim();
+  const reasons = [];
+  if (val('fpep') === 'Yes') reasons.push('Foreign prominent public official (FPPO)');
+  if (val('dpip') === 'Yes') reasons.push('Domestic prominent influential person (DPIP)');
+  if (val('pepFamily') === 'Yes') reasons.push('Family member / close associate of a PEP');
+  if (val('saCitizen') === 'No') reasons.push('Not an SA citizen or permanent resident');
+  if (val('operatesOnlyInSA') === 'No') reasons.push('Entity operates outside South Africa');
+  if (val('cashOver50k') === 'Yes') reasons.push('Cash payments of R50,000 or more');
+  if (['Cash', 'International transfer'].includes(val('paymentSource'))) reasons.push(`Payment source: ${val('paymentSource')}`);
+  if (val('sourceOfFunds') === 'Lottery/gambling') reasons.push('Source of funds: lottery/gambling');
+  if (val('companyType') === 'Foreign company / external company') reasons.push('Foreign company');
+  if (val('form1Completed') === 'Not yet') reasons.push('Beneficial owner forms (Form 1) outstanding');
+  if (sub.type === 'enhanced') reasons.push('Legacy enhanced due diligence submission');
+  return reasons;
+}
+
+export { REQUIRED_DOCUMENTS_DEFAULT, REQUIRED_DOCUMENTS_BY_TYPE };

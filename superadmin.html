@@ -52,7 +52,7 @@
         <div class="field"><label for="newName">Agency name</label><input type="text" id="newName"></div>
         <div class="field"><label for="newSlug">Slug (used in client link, e.g. acme-realty)</label><input type="text" id="newSlug" pattern="[a-z0-9-]+" title="Lowercase letters, numbers, and hyphens only"></div>
         <div class="field"><label for="newAccessCode">Client access code</label><input type="text" id="newAccessCode"></div>
-        <div class="field"><label for="newAgentPassword">Agent password</label><input type="text" id="newAgentPassword"></div>
+        <div class="field"><label for="newAgentPassword">Shared agent password <span class="field-hint">(optional, legacy — prefer adding a principal under Edit → Team)</span></label><input type="text" id="newAgentPassword"></div>
         <div class="field">
           <label for="newStatus">Status</label>
           <select id="newStatus"><option value="trial">Trial</option><option value="active">Active</option><option value="suspended">Suspended</option></select>
@@ -104,12 +104,25 @@
     <div class="field"><label for="editNextDueAt">Next due</label><input type="date" id="editNextDueAt"></div>
     <button type="button" class="secondary" id="markPaidToday" style="margin-bottom:22px;">Mark paid today (next due: 25th of the month)</button>
     <div class="field"><label for="editAccessCode">New client access code</label><input type="text" id="editAccessCode" placeholder="Leave blank to keep current"></div>
-    <div class="field"><label for="editAgentPassword">New agent password</label><input type="text" id="editAgentPassword" placeholder="Leave blank to keep current"></div>
+    <div class="field"><label for="editAgentPassword">New shared agent password (legacy)</label><input type="text" id="editAgentPassword" placeholder="Leave blank to keep current"></div>
+    <div class="field"><label><input type="checkbox" id="editSharedLink"> Allow the shared client link + access code (turn off once the agency sends personal invite links)</label></div>
     <div style="display:flex; gap:10px;">
       <button id="editSave">Save changes</button>
       <button type="button" class="danger" id="editDelete">Delete company</button>
     </div>
     <div class="error" id="editError" hidden></div>
+
+    <h2 style="margin-top:32px;">Team (individual logins)</h2>
+    <p class="field-hint">Add the agency's principal here; they can then add their own agents. Once anyone is added, the shared agent password stops working.</p>
+    <table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th></th></tr></thead><tbody id="adminTeamBody"></tbody></table>
+    <div class="team-form" style="margin-top:12px;">
+      <input type="text" id="adminTeamName" placeholder="Full name">
+      <input type="email" id="adminTeamEmail" placeholder="Email">
+      <select id="adminTeamRole"><option value="principal">Principal</option><option value="agent">Agent</option></select>
+      <input type="text" id="adminTeamPassword" placeholder="Temporary password (10+ characters)">
+      <button type="button" id="adminTeamAdd">Add</button>
+    </div>
+    <div class="error" id="adminTeamError" hidden></div>
   </section>
 
 </div>

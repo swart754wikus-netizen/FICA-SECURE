@@ -313,7 +313,7 @@ tr:hover td { background: #f8fafc; cursor: pointer; }
 .doc-view .qa:nth-child(odd) { background: #f8fafc; }
 .doc-view .qa .q { font-weight: 700; font-size: 15px; color: var(--text); margin-bottom: 3px; }
 .doc-view .qa .a { font-size: 15px; color: var(--text-muted); }
-.doc-view .risk-flag {
+.doc-view .risk-flag, #submissionsBody .risk-flag {
   display: inline-block;
   background: #fef3c7;
   color: #92400e;
@@ -379,3 +379,25 @@ tr:hover td { background: #f8fafc; cursor: pointer; }
   body { background: #fff; }
   .card { box-shadow: none; border: none; }
 }
+
+/* EDD banner on submission detail (derived from client answers) */
+.edd-banner { border: 1px solid #f3b8bf; background: #fde8ea; color: #7d1420; border-radius: 10px; padding: 12px 16px; margin: 0 0 16px; }
+.edd-banner ul { margin: 6px 0 0; padding-left: 20px; }
+.edd-banner.edd-done { border-color: #a7dcc0; background: #e3f5ec; color: #11633e; }
+@media print { .edd-banner { break-inside: avoid; } }
+#submissionsBody .risk-flag { font-size: 12px; padding: 1px 8px; margin-left: 6px; }
+
+/* Agent login / MFA, invites, team */
+.linkish { background: none; border: 0; padding: 0; color: inherit; text-decoration: underline; cursor: pointer; font: inherit; box-shadow: none; width: auto; }
+.setup-key { font-family: ui-monospace, Menlo, monospace; font-size: 15px; letter-spacing: 1px; background: #f1f5f9; padding: 2px 6px; border-radius: 4px; word-break: break-all; }
+.enroll-steps { padding-left: 20px; }
+.enroll-steps li { margin-bottom: 6px; }
+.invite-result { margin-top: 14px; padding: 12px; border-radius: 10px; background: #f0f7ff; border: 1px solid #cfe1fb; }
+.invite-list { margin-top: 14px; }
+.invite-list summary { cursor: pointer; font-weight: 600; margin-bottom: 8px; }
+.notice-card { background: #fffbeb; border-color: #fde68a; color: #78350f; font-size: 14px; line-height: 1.55; }
+.team-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }
+.status-pill { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; }
+.status-pill.pending { background: #e0ecff; color: #1e3a8a; }
+.status-pill.submitted, .status-pill.active { background: #e3f5ec; color: #11633e; }
+.status-pill.expired, .status-pill.revoked, .status-pill.inactive { background: #f1f5f9; color: #475569; }

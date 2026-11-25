@@ -38,7 +38,7 @@ node scripts/migrateCompanies.js rotate
 
 ### 3. Security rules
 
-`firestore.rules`/`storage.rules` already have your super admin email (`swart754wikus@gmail.com`) filled in. Paste each file's contents into Firebase Console → Firestore Database → Rules, and → Storage → Rules, then Publish (this replaces the emergency deny-all from step 0).
+Super admin access is a Firebase custom claim (see "Upgrading to individual logins" below — run `scripts/grantSuperAdmin.js` first). Paste each file's contents into Firebase Console → Firestore Database → Rules, and → Storage → Rules, then Publish (this replaces the emergency deny-all from step 0).
 
 (Firebase CLI alternative: `firebase deploy --only firestore:rules,storage:rules --project fica-app-fc93c`.)
 
@@ -48,7 +48,7 @@ node scripts/migrateCompanies.js rotate
 2. Project Settings → Environment Variables — set (see `.env.example`, project ID and storage bucket are already filled in there):
    - `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY` — from the service account JSON from step 1. `FIREBASE_PRIVATE_KEY` must keep its `\n` escapes; paste it exactly as it appears in the JSON's `private_key` field.
    - `FIREBASE_STORAGE_BUCKET` = `fica-app-fc93c.firebasestorage.app`
-   - `SUPER_ADMIN_EMAIL` = `swart754wikus@gmail.com`
+   - `DATA_ENCRYPTION_KEY` — 32 random bytes, base64 (encrypts agents' authenticator secrets). Generate with `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`. Keep it safe: losing it means every agent re-enrols their authenticator.
 3. Deploy.
 
 ### 4.5 Storage CORS (needed for the agent portal's document downloads)
@@ -65,6 +65,38 @@ Re-run this whenever you add a custom domain. Without it, document download butt
 ### 5. Verify, then tell your agencies
 
 Log into `/superadmin` with your existing Firebase Auth account. Existing companies should show up (their submissions are untouched). If you ran `rotate`, distribute each agency's new access code/agent password from the script's output, and update the client links you've sent out if slugs changed (they didn't — only credentials did).
+
+## Upgrading to individual logins, invites and company clients
+
+What this adds:
+
+- **Individual agent logins** (`/api/agentAuth`, `/api/manageAgents`): email + password + mandatory authenticator-app code (TOTP). Secrets are AES-256-GCM encrypted in `AGENTS` (never readable from a browser), codes can't be replayed, failed attempts are rate-limited per IP and per account. Principals manage their own team; GLS adds each agency's first principal from **Super admin → Edit → Team**. As soon as an agency has one individual login, its shared agent password stops working.
+- **Sessions:** agent sessions end when the browser closes, after 20 minutes idle, and — enforced in the rules — 12 hours after sign-in at most. Client sessions are capped at 2 hours. Deactivating an agent revokes their session.
+- **Per-client invite links** (`/api/clientInvite`): agents create a personal link (valid 7 days, single use) and send it by copy or WhatsApp. The link's SHA-256 is the submission ID, so the rules allow exactly one submission per link, and that client can only upload into their own folder. Agents can cancel pending links. The shared link + access code keeps working until the super admin unticks **"Allow the shared client link"** for that agency.
+- **Company / CC client type** with director/shareholder/beneficial-owner questions, plus sensible document lists per client type (company, trust, partnership) when the agency hasn't configured its own.
+- **Super admin is a custom claim**, not an email address — nobody can gain access by registering an account with your email, and the email is no longer in the public rules.
+- A notice in the agent portal listing the FICA duties the portal doesn't perform (sanctions screening, RMCP risk rating, goAML reporting).
+
+### Deploy order (do it in this order or you'll lock yourself out)
+
+1. **Vercel env:** add `DATA_ENCRYPTION_KEY` for Production **and** Preview (same value — they share one Firebase project). Keep `SUPER_ADMIN_EMAIL` for now.
+2. **Become super admin (no terminal needed):** while the *old* rules are still published, open `/superadmin` on the deployment (preview or production) and log in with your admin email and password. `api/claimSuperAdmin.js` converts that account to the `superAdmin` claim automatically. (Alternative: `node scripts/grantSuperAdmin.js <email>` with the service-account env vars.)
+3. **Merge and deploy** to Vercel.
+4. **Publish** `firestore.rules` and `storage.rules` (step 3 above). Sign out of `/superadmin` and back in to confirm it still works.
+5. Optional: remove `SUPER_ADMIN_EMAIL` from Vercel to switch off step 2's automatic upgrade.
+6. **Per agency:** Super admin → Edit → Team → add the principal with a temporary password and tell them by phone. On first login they set up their authenticator; they can then add their own agents. Until then the agency keeps working on the shared password.
+7. When an agency is comfortable with personal invites, untick "Allow the shared client link".
+
+Tests: `npm test` (API, no network needed) and `cd tests/rules && npm install && npm test` (security rules in the Firebase emulator, needs Java 11+).
+
+## FICA record-keeping & EDD
+
+- **Retention (FICA s22–s23):** submissions and their documents cannot be deleted by anyone for 5 years after `createdAt` (enforced in `firestore.rules` / `storage.rules`). After that only the super admin can purge them. The agent portal no longer has a delete button.
+- **Immutable evidence:** client answers, signature and documents can't be edited by agents or the super admin. Clients can attach document metadata once, within an hour of submitting.
+- **EDD is risk-based, not self-selected:** the "Enhanced Due Diligence" form is the agency's internal risk assessment, so clients can no longer choose it. `eddTriggers()` in `js/formDefinitions.js` flags EDD from the client's answers (PEP/DPIP/family, non-resident, foreign operations, cash ≥ R50k, cash/international payment, lottery source, outstanding Form 1). Agents complete the assessment in the agent portal; it is saved once, server-timestamped and locked.
+- **Access log:** `AUDIT_LOG` (append-only) records submission views, document views and EDD sign-offs. Until agents have individual logins (next step), the actor is the shared agency login.
+
+To deploy: publish both rules files (step 3 above), then deploy the frontend. Rules tests: `cd tests/rules && npm install && npm test` (needs Java 11+).
 
 ## Verification checklist
 
